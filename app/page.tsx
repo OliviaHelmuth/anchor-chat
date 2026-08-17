@@ -8,12 +8,12 @@ import { PainPoints } from "./_components/PainPoints";
 import { HowItWorks } from "./_components/HowItWorks";
 import { TrustSection } from "./_components/TrustSection";
 import { StartChat } from "./_components/StartChat";
-import { WaitingRoom } from "./_components/WaitingRoom";
+import { ChatWidget } from "./_components/ChatWidget";
+import { ChatWidgetProvider } from "./_components/ChatWidgetContext";
 
 export default async function Home() {
   const sessionId = await getSessionId();
   const position = sessionId ? await getQueuePosition(sessionId) : null;
-  const inChat = position !== null;
 
   const identified = sessionId
     ? await Promise.all([
@@ -22,29 +22,25 @@ export default async function Home() {
       ]).then(([session, passkey]) => Boolean(session?.email || session?.phone || passkey))
     : false;
 
+  // The landing page always renders — an active chat lives in the floating
+  // widget, not a full-page takeover, so clicking the Nav logo back to "/"
+  // actually shows the marketing page again instead of a stuck queue view.
   return (
-    <>
+    <ChatWidgetProvider startOpen={position !== null}>
       <Nav />
       <main className="flex-1">
-        {inChat ? (
-          <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 py-24">
-            <WaitingRoom
-              initial={{ position, waitSeconds: await getWaitEstimateSeconds(position) }}
-              identified={identified}
-            />
-          </div>
-        ) : (
-          <>
-            <Hero>
-              <StartChat />
-            </Hero>
-            <PainPoints />
-            <HowItWorks />
-            <TrustSection />
-          </>
-        )}
+        <Hero>
+          <StartChat />
+        </Hero>
+        <PainPoints />
+        <HowItWorks />
+        <TrustSection />
       </main>
       <Footer />
-    </>
+      <ChatWidget
+        initial={position !== null ? { position, waitSeconds: await getWaitEstimateSeconds(position) } : null}
+        identified={identified}
+      />
+    </ChatWidgetProvider>
   );
 }

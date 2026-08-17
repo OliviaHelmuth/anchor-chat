@@ -27,7 +27,29 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 - [x] T1.4 — Wait-time estimate: (queue depth) ÷ (rolling avg claims/minute over last N claims), not a hardcoded number [FR-3.2] — cold-start fallback (5 min) verified live since no claims exist yet (Milestone 3 hasn't shipped claiming)
 - [x] T1.5 — Subscribe the visitor's client to the `queue` Ably channel so position updates live [FR-3.3] — token-auth endpoint scoped subscribe-only, channel carries no personal data (ping-then-refetch, not broadcast), 20s poll as fallback
 - [x] T1.6 — Schema review: confirm no name/DOB/address field exists anywhere [FR-1.3] — `grep -inE "name|dob|birth|address" prisma/schema.prisma` matches only the comment stating the rule, no field
-- [x] T1.7 — Visitor can leave the queue: cancel action removes the `QueueEntry`, closes the chat widget, returns to the landing page [FR-3.4] — `POST /api/chat/leave` (`lib/queue.ts`'s `leaveQueue`, `deleteMany` for idempotency on a double-click), "Leave the queue" link in `WaitingRoom`, publishes the same `queue` Ably update `start` uses. Verified live: leaving returns to the hero landing page, a second leave call is a no-op (200, not 500), starting again after leaving creates a fresh queue entry.
+- [x] T1.7 — Visitor can leave the queue: cancel action removes the `QueueEntry`, closes the chat widget, returns to the landing page [FR-3.4] — `POST /api/chat/leave` (`lib/queue.ts`'s `leaveQueue`, `deleteMany` for idempotency on a double-click), "Leave the queue" link in the widget, publishes the same `queue` Ably update `start` uses. Verified live: leaving returns to the hero landing page, a second leave call is a no-op (200, not 500), starting again after leaving creates a fresh queue entry.
+
+**UX fine-tuning pass (post-Milestone 3.5):** the full-page `WaitingRoom` was
+replaced with `ChatWidget` — a fixed bottom-right panel (open/minimize,
+persists across the site instead of taking over the page), floated via a
+small `ChatWidgetContext` so `StartChat` (Hero's CTA) and the widget can
+coordinate open state without being parent/child. This is FR-5.5's widget
+*shape*, pulled forward from Milestone 4 because it fixed a real bug: the
+Nav logo's link to "/" appeared broken while queued, since Home() used to
+swap its entire body to `WaitingRoom` regardless of which link got you back
+to "/" — now the landing page always renders and the widget floats
+independently, so the logo genuinely returns to it. Also: when position is
+1, the widget shows "You're connected — a Listener will be with you any
+moment" instead of the raw `#1`, since there's nothing left to literally
+wait for. Note this is still a shell, not Milestone 4's actual chat — the
+composer is present but disabled ("Messaging opens once a Listener
+joins…"); T4.1/T4.2's real message list, composer, and `chat:{id}`
+subscription are still outstanding, along with T4.2.1's display-name field
+and T4.2.2's queue-roster panel (FR-5.5/5.6 aren't fully met yet). Nav's
+top-right CTA also changed from "Chat now" to "Login" → `/listener/login`,
+since starting a chat now lives entirely in the Hero CTA + widget, freeing
+the Nav slot for Listener/admin sign-in (including Menty B reaching the
+admin dashboard).
 
 ## Milestone 2 — Passwordless auth · Challenge 1 [FR-2]
 
@@ -91,7 +113,7 @@ Migration note: the same non-interactive-Prisma workaround from T3.1 was needed 
 ## Milestone 4 — Realtime messaging · Challenge 2 [FR-5]
 
 - [ ] T4.1 — `POST /api/chat/:id/messages`: write to DB with server-assigned sequence, then publish on `chat:{id}` [FR-5.1, FR-5.2]
-- [ ] T4.2 — Chat UI as a bottom-right widget (open/collapse), not a full-page takeover; message list + composer, subscribed to `chat:{id}` [FR-5.5]
+- [ ] T4.2 — Chat UI as a bottom-right widget (open/collapse), not a full-page takeover; message list + composer, subscribed to `chat:{id}` [FR-5.5] — the widget *shell* (open/minimize, bottom-right, `ChatWidget`/`ChatWidgetContext`) was pulled forward in Milestone 1's UX fine-tuning note above; still outstanding here: the real message list, a working (non-disabled) composer, and the `chat:{id}` subscription
 - [ ] T4.2.1 — Optional display-name field on widget open, defaults to "Anonymous" if left blank; stored on `Session.displayName` [FR-5.5]
 - [ ] T4.2.2 — Queue roster panel in the widget: shows other waiting visitors by display name/"Anonymous", live off the `queue` channel [FR-5.6]
 - [ ] T4.3 — Reconnect handling: on Ably reconnect, re-fetch messages since last known sequence [FR-5.3]

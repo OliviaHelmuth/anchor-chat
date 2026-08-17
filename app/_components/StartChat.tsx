@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useChatWidget } from "./ChatWidgetContext";
 
 export function StartChat() {
-  const router = useRouter();
+  const { openWidget } = useChatWidget();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
 
@@ -14,12 +14,12 @@ export function StartChat() {
     try {
       const res = await fetch("/api/chat/start", { method: "POST" });
       if (!res.ok) throw new Error("start failed");
-      // The server component reads the session cookie the API just set —
-      // refresh() re-runs it instead of a client-side redirect guessing
-      // what to show.
-      router.refresh();
+      // ChatWidget (fixed bottom-right) picks up the entry this just
+      // created and fetches its own position data — no page navigation.
+      openWidget();
     } catch {
       setError(true);
+    } finally {
       setPending(false);
     }
   }

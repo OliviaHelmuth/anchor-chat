@@ -31,12 +31,12 @@ export function Nav() {
           </a>
         </nav>
 
-        <a
-          href="#chat"
+        <Link
+          href="/listener/login"
           className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-bg transition hover:opacity-90"
         >
-          Chat now
-        </a>
+          Login
+        </Link>
       </div>
     </header>
   );
