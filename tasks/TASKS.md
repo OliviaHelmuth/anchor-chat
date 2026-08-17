@@ -73,6 +73,8 @@ config-change-not-rewrite shape as before: no `BREVO_API_KEY`/
 worked. `BREVO_SENDER_EMAIL` must be a sender verified in Brevo's dashboard
 first — unlike Resend, there's no shared sandbox sender address.
 
+- [x] T2.8 — Filed against a real bug report: magic-link email worked on localhost but silently did nothing in production. Root-caused via `vercel env ls production` — `BREVO_API_KEY`/`BREVO_SENDER_EMAIL` were never added to the Vercel project's env vars (only `LISTENER_ADMIN_EMAIL`, `AUTH_SECRET`, `NEXT_PUBLIC_SENTRY_DSN`, `ABLY_API_KEY`, `DATABASE_URL` are set there), so `lib/email.ts`'s `sendEmail` silently returned `false` — the same fallback T2.1/the Brevo swap intentionally use for local dev. Nothing about that path throws, so none of the `Sentry.captureException` calls already sitting in every request-magic-link/request-listener-login/request-otp route ever fired, and the route still answered the client with 200 `{ ok: true }` — indistinguishable from a real send. Two things fixed in code: (1) `lib/email.ts` now calls `Sentry.captureMessage(..., "error")` when Brevo config is missing **and** `NODE_ENV === "production"` — the identical missing-config state is silent in dev (expected) and now loud in prod (a real misconfiguration), so this exact failure mode shows up in Sentry the next time it happens instead of just looking like a link that never arrived; (2) `/listener/login` — the only email-magic-link entry point actually mounted in production right now (`BindIdentity`'s equivalent flow has been unmounted from `ChatWidget` since Milestone 4.98) — gets a "Didn't get email? Resend email" link that appears 2 minutes after a send/resend and re-POSTs `/api/auth/request-listener-login` with the same address, reusing the existing 5/min rate limit rather than a new endpoint. Infra fixed too, with explicit go-ahead each step (adding to shared production config, then triggering a production deploy, are both things this repo's conventions treat as requiring confirmation first): `BREVO_API_KEY`/`BREVO_SENDER_EMAIL` added to Vercel Production + Preview via `vercel env add` (values piped from local `.env` straight to the CLI, never printed to the transcript), then `vercel --prod` to actually roll the new env vars out — Vercel bundles env vars into a function's build, so adding them alone doesn't affect an already-deployed function. Verified live end to end on the real production URL (`anchor-chat-kappa.vercel.app`, not just dev): submitted the seeded admin address at `/listener/login`, a real email arrived via Brevo, sign-in completed successfully. **Not verified live**: the resend button's 2-minute timer actually firing (not waited out — confirmed by code path and a clean `tsc`/`lint` instead) and the Sentry capture actually landing in the dashboard (only reachable by deploying with Brevo unset again, which isn't worth doing now that it's configured). `BindIdentity.tsx` intentionally left untouched — still unmounted, not part of this bug's live surface.
+
 ## Milestone 2.5 — Real landing page & rebrand pass
 
 Inserted out of sequence, before Milestone 3 — the app needed to actually
@@ -264,33 +266,51 @@ were asked to go, to make the block easier on the eye.
 - [x] `Hero.tsx`: removed the two `aria-hidden` decorative shape divs (circle top-right, rotated square bottom-right) and the now-unused `overflow-hidden` on the card that existed only to clip them. Badge/headline/CTA/trust line untouched. The hidden "more espresso" easter-egg sticker (separate purpose, already subtle/low-opacity-until-hover) was left alone — not what "the shapes" referred to
 - [x] Verified live, both themes: Hero renders as a clean flat purple block with no corner shapes; `/listener/login` matches the rest of the site's look in both light and dark mode, Nav toggles work. `npx tsc --noEmit` and `npm run lint` both clean
 
-## Milestone 5 — AI-assisted triage · Challenge 3 [FR-6]
+## Milestone 5 — Admin dashboard: claimed-chat visibility, activity & archiving [FR-11]
 
-- [ ] T5.1 — Pick model provider (Groq or Gemini free tier, or local Ollama) per `docs/hosting-and-scaling.md`, get it behind one `classifyUrgency(text)` function
-- [ ] T5.2 — Redaction step: strip email/phone/session token/IP before building the prompt — write this as its own tested unit, not inline [FR-6.2]
-- [ ] T5.3 — Unit tests for the redaction step specifically (this is the part that most needs proving) [technical-requirements.md testing]
-- [ ] T5.4 — Wire classification into the message-send path; on failure, tag `unclassified` and still deliver [FR-6.3]
-- [ ] T5.5 — Show the tier only in the Listener view, never to the visitor [FR-6.4]
-- [ ] T5.6 — Write `docs/challenges/ai-triage.md`: exact fields stripped, and what you'd tell an interviewer about the trade-offs
+Requested directly: the queue side already shows wait time (FR-3.1/FR-3.2,
+`AdminDashboard`'s "waiting since"); the claimed side never got the same
+treatment. Right now a claimed chat is just an open transcript panel — no
+list of everything currently claimed, no sense of who claimed what or who's
+on the other end without opening the panel, no staleness/presence signal,
+and no way to filter or get old chats out of the way. See FR-11 in
+`docs/product-requirements.md` for the full acceptance criteria.
 
-## Milestone 6 — Queue design exercise · Challenge 4
+- [ ] T5.1 — Schema: add a `lastSeenAt` timestamp on `Session`, updated on visitor activity (message send, and a lightweight presence heartbeat) — the foundation FR-11.3/FR-11.4's "since last reply"/"last online" math needs, since nothing currently records visitor-side liveness outside message rows
+- [ ] T5.2 — `GET /api/listener/sessions`: extend the response with, per claimed session, the claiming Listener's displayName, the visitor's displayName, the last message's timestamp, and computed time-since-last-reply [FR-11.1, FR-11.2, FR-11.3]
+- [ ] T5.3 — New claimed-chat list section in `AdminDashboard`, distinct from the open transcript panels — one row per claimed chat (Listener, visitor, last message time, time since last reply); clicking a row opens/focuses its panel. This is the "improve how the chats look" ask — the claimed side gets the same at-a-glance clarity the queue list already has [FR-11.1, FR-11.2, FR-11.3]
+- [ ] T5.4 — Online/last-online indicator: extend the Ably presence channel already used for typing (T4.5) so the Listener side can read a visitor's current presence state; render "online" or "last online: <time>" per chat in the new list [FR-11.4]
+- [ ] T5.5 — Filter control on the claimed-chat list: by visitor last-online time or by time the admin last answered [FR-11.5]
+- [ ] T5.6 — Archiving: a chat with no message activity for 40+ days drops out of the active claimed-chat list and default panel restore (`localStorage` open-panel list from T4.8); new read-only `/admin/archive` view lists archived chats [FR-11.6]
+- [ ] T5.7 — Verified live pass: claimed-chat list renders correct Listener/visitor/timing data, presence indicator flips on tab close/reopen, filter narrows the list correctly, an artificially-backdated chat (test data) drops into the archive view and out of the active list
 
-- [ ] T6.1 — Write up the wait-time-estimate algorithm from T1.4 as a standalone doc with the formula and its failure modes (empty history, sudden Listener drop-off)
-- [ ] T6.2 — Whiteboard-style writeup: how you'd fairly route an incoming chat across multiple available Listeners (round robin vs. least-loaded vs. skill match) — no code required, `docs/challenges/queue-design.md`
+## Milestone 6 — AI-assisted triage · Challenge 3 [FR-6]
 
-## Milestone 7 — Node vs Python API exercise · Challenge 5
+- [ ] T6.1 — Pick model provider (Groq or Gemini free tier, or local Ollama) per `docs/hosting-and-scaling.md`, get it behind one `classifyUrgency(text)` function
+- [ ] T6.2 — Redaction step: strip email/phone/session token/IP before building the prompt — write this as its own tested unit, not inline [FR-6.2]
+- [ ] T6.3 — Unit tests for the redaction step specifically (this is the part that most needs proving) [technical-requirements.md testing]
+- [ ] T6.4 — Wire classification into the message-send path; on failure, tag `unclassified` and still deliver [FR-6.3]
+- [ ] T6.5 — Show the tier only in the Listener view, never to the visitor [FR-6.4]
+- [ ] T6.6 — Write `docs/challenges/ai-triage.md`: exact fields stripped, and what you'd tell an interviewer about the trade-offs
 
-- [ ] T7.1 — Re-implement `POST /api/chat/:id/messages` as a standalone Python (FastAPI) service hitting the same Postgres schema, purely for comparison
-- [ ] T7.2 — Write `docs/challenges/node-vs-python.md`: side-by-side trade-offs you actually hit (typing story, async model, deployment story on a free tier)
+## Milestone 7 — Queue design exercise · Challenge 4
 
-## Milestone 8 — Code review practice · Challenge 6
+- [ ] T7.1 — Write up the wait-time-estimate algorithm from T1.4 as a standalone doc with the formula and its failure modes (empty history, sudden Listener drop-off)
+- [ ] T7.2 — Whiteboard-style writeup: how you'd fairly route an incoming chat across multiple available Listeners (round robin vs. least-loaded vs. skill match) — no code required, `docs/challenges/queue-design.md`
 
-- [ ] T8.1 — Pick one finished milestone's code, write a self-review as if reviewing a teammate's PR — what you'd flag, in `docs/challenges/code-review-practice.md`
-- [ ] T8.2 — *(optional)* trade a real review with someone else on a snippet from this repo
+## Milestone 8 — Node vs Python API exercise · Challenge 5
 
-## Milestone 9 — Demo readiness
+- [ ] T8.1 — Re-implement `POST /api/chat/:id/messages` as a standalone Python (FastAPI) service hitting the same Postgres schema, purely for comparison
+- [ ] T8.2 — Write `docs/challenges/node-vs-python.md`: side-by-side trade-offs you actually hit (typing story, async model, deployment story on a free tier)
 
-- [ ] T9.1 — Seed script: synthetic visitor + Listener + a short fictional conversation, runnable from a clean clone [FR-7.3]
-- [ ] T9.2 — README "getting started" verified against a genuinely fresh checkout
-- [ ] T9.3 — Time a live demo run end to end, confirm it's under 5 minutes (PRD success criterion)
-- [ ] T9.4 — Re-read `docs/hosting-and-scaling.md` and make sure you can explain every choice out loud without notes
+## Milestone 9 — Code review practice · Challenge 6
+
+- [ ] T9.1 — Pick one finished milestone's code, write a self-review as if reviewing a teammate's PR — what you'd flag, in `docs/challenges/code-review-practice.md`
+- [ ] T9.2 — *(optional)* trade a real review with someone else on a snippet from this repo
+
+## Milestone 10 — Demo readiness
+
+- [ ] T10.1 — Seed script: synthetic visitor + Listener + a short fictional conversation, runnable from a clean clone [FR-7.3]
+- [ ] T10.2 — README "getting started" verified against a genuinely fresh checkout
+- [ ] T10.3 — Time a live demo run end to end, confirm it's under 5 minutes (PRD success criterion)
+- [ ] T10.4 — Re-read `docs/hosting-and-scaling.md` and make sure you can explain every choice out loud without notes

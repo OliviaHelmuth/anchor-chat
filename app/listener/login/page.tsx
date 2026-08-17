@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Nav } from "@/app/_components/Nav";
 
 // Redesigned onto the neo-brutalist system the rest of the site already
@@ -9,16 +9,30 @@ import { Nav } from "@/app/_components/Nav";
 // branded header. English-only, same as ChatWidget/BindIdentity
 // (docs/technical-requirements.md) — this is a pre-auth utility page, not
 // part of the DE/EN landing-page rollout.
+
+const RESEND_DELAY_MS = 2 * 60 * 1000;
+
 export default function ListenerLoginPage() {
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
-  const [sent, setSent] = useState(false);
+  // Timestamp of the most recent successful send, not a boolean — a resend
+  // needs to restart the countdown below, and setting a boolean that's
+  // already `true` back to `true` wouldn't re-trigger the effect.
+  const [sentAt, setSentAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canResend, setCanResend] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (sentAt === null) return;
+    const timer = setTimeout(() => setCanResend(true), RESEND_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [sentAt]);
+
+  async function sendLink() {
     setPending(true);
     setError(null);
+    setCanResend(false);
     try {
       const res = await fetch("/api/auth/request-listener-login", {
         method: "POST",
@@ -28,12 +42,23 @@ export default function ListenerLoginPage() {
       if (!res.ok) throw new Error("request failed");
       // Same response whether or not the email matches a seeded Listener —
       // see app/api/auth/request-listener-login/route.ts.
-      setSent(true);
+      setSentAt(Date.now());
     } catch {
       setError("Couldn't send that link. Try again in a minute.");
     } finally {
       setPending(false);
     }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    await sendLink();
+  }
+
+  async function handleResend() {
+    setResent(false);
+    await sendLink();
+    setResent(true);
   }
 
   return (
@@ -47,8 +72,22 @@ export default function ListenerLoginPage() {
             Listener email and we&apos;ll send a sign-in link.
           </p>
 
-          {sent ? (
-            <p className="text-sm text-ink/70">Check your email for a sign-in link.</p>
+          {sentAt !== null ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-sm text-ink/70">
+                {resent ? "Link resent — check your email." : "Check your email for a sign-in link."}
+              </p>
+              {canResend && (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={pending}
+                  className="text-sm font-bold underline disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {pending ? "Resending…" : "Didn't get email? Resend email"}
+                </button>
+              )}
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
               <input

@@ -13,7 +13,7 @@ you treat the privacy design as the deliverable, not the model call.
 1. **Redact before you build the prompt.** Strip anything that identifies
    the person: email, phone, session/user ID, IP address. What's left is the
    message text and nothing else. Do this as its own function you can unit
-   test (`tasks/TASKS.md` T5.2/T5.3) — "we redact PII" is not credible
+   test (`tasks/TASKS.md` T6.2/T6.3) — "we redact PII" is not credible
    without a test proving a specific input with an email in it comes out
    clean.
 2. **Minimal, fixed prompt.** Don't pass conversation history if the task

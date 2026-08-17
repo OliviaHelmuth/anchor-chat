@@ -116,3 +116,22 @@ and anonymous as before.
 | FR-10.1 | Landing page (nav, hero, how-it's-used, trust, FAQ, footer) is available in German and English, user-toggleable | Must | A visible toggle switches all landing copy live, no reload required; choice persists across visits (localStorage) |
 | FR-10.2 | Visitor can explicitly force light or dark theme, independent of OS setting | Must | Toggle in nav overrides `prefers-color-scheme`; choice persists across visits |
 | FR-10.3 | Landing page has a dedicated FAQ section answering: who it's for, when to use it, how long it takes, who's on the other end | Must | Four question/answer pairs, expandable, reachable from nav/footer anchor link |
+
+## FR-11 — Admin dashboard: claimed-chat visibility, activity & archiving
+
+Requested directly: the claimed-chat side of the dashboard (Milestone 4.8's
+`AdminDashboard`) never got the same design attention the queue/waiting side
+did. Right now a claimed chat is just an open panel with a live transcript —
+there's no at-a-glance list of *everything* currently claimed, no sense of
+how stale a chat has gone, and no presence/last-seen signal at all. Queue
+wait-time (FR-3.1/FR-3.2) is already solved; this FR is specifically about
+the claimed side.
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---|---|
+| FR-11.1 | A claimed-chat list, distinct from the open transcript panels, shows for every currently claimed chat: which Listener claimed it and the visitor's display name | Must | List/row view on the dashboard, not just the panel header — visible without opening the chat |
+| FR-11.2 | Each claimed chat shows the timestamp of the visitor's last message | Must | Rendered in the claimed-chat list and/or panel header |
+| FR-11.3 | Each claimed chat shows how long it's been since the visitor last replied | Must | Computed duration (e.g. "42m since last reply"), not a raw timestamp only |
+| FR-11.4 | Each claimed chat shows whether the visitor is currently online, or a "last online" time if not | Should | Presence-derived online/offline state (extends the Ably presence channel already used for typing, T4.5); falls back to last-seen timestamp when the visitor isn't present |
+| FR-11.5 | Admin can filter the claimed-chat list by visitor last-online time or by time the admin last answered | Should | Filter/sort control on the list, both fields selectable |
+| FR-11.6 | A chat with no message activity for 40+ days is archived: it drops out of the active claimed-chat list, and is viewable in a separate read-only archive view | Must | Archive view lists chats past the 40-day threshold; they no longer appear in the normal claimed-chat list or as an openable panel by default |

@@ -50,7 +50,7 @@ picking "priority queue" and moving on.
 
 ## What we built here
 
-`tasks/TASKS.md` T1.4 implements the rolling-average estimate. T6.2 is the
+`tasks/TASKS.md` T1.4 implements the rolling-average estimate. T7.2 is the
 explicit writeup task for the routing-strategy comparison — this file *is*
 most of that writeup; extend it if you actually implement more than round
 robin.

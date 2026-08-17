@@ -36,7 +36,7 @@ krisenchat's own "Node.js or Python" phrasing is describing.
 
 ## What we built here
 
-`tasks/TASKS.md` T7.1 reimplements one endpoint in FastAPI purely to have a
-real side-by-side, not a hypothetical one — T7.2 is where the actual
+`tasks/TASKS.md` T8.1 reimplements one endpoint in FastAPI purely to have a
+real side-by-side, not a hypothetical one — T8.2 is where the actual
 first-hand trade-offs you hit go, which will be more convincing in an
 interview than the table above alone.

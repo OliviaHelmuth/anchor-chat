@@ -26,15 +26,15 @@ loop might include reviewing existing code rather than only writing new code.
 ## How to practice this concretely
 
 - After finishing any milestone in `tasks/TASKS.md`, before checking it off,
-  do T8.1: reread the diff as if it were someone else's PR and write down
+  do T9.1: reread the diff as if it were someone else's PR and write down
   what you'd comment. Actually write it in
   `docs/challenges/code-review-practice.md` (this file) as a running log —
   don't just think it.
-- If possible, do T8.2 for real: trade a review with another person on a
+- If possible, do T9.2 for real: trade a review with another person on a
   real snippet from this repo. A review you give out loud to someone who
   pushes back is a better rehearsal than one you write alone.
 
 ## Review log
 
-*(Add entries here as you complete T8.1 — one short entry per milestone
+*(Add entries here as you complete T9.1 — one short entry per milestone
 reviewed, dated, with what you flagged and why.)*
