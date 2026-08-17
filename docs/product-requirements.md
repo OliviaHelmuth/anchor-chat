@@ -19,8 +19,8 @@ time allows, "Later" = explicitly deferred per the PRD.
 | FR-2.1 | Visitor can bind their anonymous session to an email via magic link | Must | Clicking the emailed link signs the same browser session in, no password ever entered |
 | FR-2.2 | Magic link expires | Must | A link older than 15 minutes is rejected with a clear re-request path |
 | FR-2.3 | Magic link is single-use | Must | Second click on a used link fails safely |
-| FR-2.4 | Visitor can alternatively bind via one-time phone code | Should | 6-digit code, expires in 5 minutes, max 5 attempts before lockout |
-| FR-2.5 | Visitor can register a passkey for return visits | Later | Deferred per PRD; stretch task in `tasks/TASKS.md` |
+| FR-2.4 | Visitor can alternatively bind via one-time phone code | Built, not surfaced | Backend fully implemented and tested (6-digit code, 5min expiry, 5-attempt lockout) — hidden from the UI because no free ongoing SMS-delivery tier exists to send a real code; a real SMS provider is a config change away, not a rewrite. See `docs/hosting-and-scaling.md`. |
+| FR-2.5 | Visitor can register a passkey for return visits | Must | Promoted from stretch to built — the only auth method here with zero cost at any scale, no third-party provider needed |
 
 ## FR-3 — Queue and wait estimate
 

@@ -1,7 +1,9 @@
 import NextAuth, { type User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/tokens";
+import { base64ToPublicKey, getRpConfig } from "@/lib/webauthn";
 
 // Auth.js's default User/Session shape has no room for a phone number, and
 // our "user" isn't really a User at all — it's the same anonymous Session
@@ -89,6 +91,62 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         return bindOrResumeByPhone(phone, record.sessionId);
+      },
+    }),
+    Credentials({
+      id: "passkeys",
+      name: "Passkey",
+      credentials: {
+        challengeId: { label: "Challenge", type: "text" },
+        response: { label: "Response", type: "text" },
+      },
+      async authorize(credentials, request): Promise<User | null> {
+        const challengeId = credentials?.challengeId;
+        const rawResponse = credentials?.response;
+        if (typeof challengeId !== "string" || typeof rawResponse !== "string") return null;
+
+        const challenge = await prisma.passkeyChallenge.findUnique({
+          where: { id: challengeId },
+        });
+        if (!challenge || challenge.usedAt || challenge.expiresAt < new Date()) return null;
+        await prisma.passkeyChallenge.update({
+          where: { id: challenge.id },
+          data: { usedAt: new Date() },
+        });
+
+        const response = JSON.parse(rawResponse);
+        // Identity comes from *which* credential the browser's passkey
+        // picker returned — never from the requesting session's cookie.
+        // That's what makes this a real sign-in rather than just a local
+        // confirmation: it works from a brand-new browser with no prior
+        // cookie at all, exactly like the email/phone resume paths above.
+        const credential = await prisma.passkeyCredential.findUnique({
+          where: { credentialId: response.id },
+        });
+        if (!credential) return null;
+
+        const { rpID, origin } = getRpConfig(request);
+        const verification = await verifyAuthenticationResponse({
+          response,
+          expectedChallenge: challenge.challenge,
+          expectedOrigin: origin,
+          expectedRPID: rpID,
+          credential: {
+            id: credential.credentialId,
+            publicKey: base64ToPublicKey(credential.publicKey),
+            counter: credential.counter,
+          },
+        });
+        if (!verification.verified) return null;
+
+        await prisma.passkeyCredential.update({
+          where: { id: credential.id },
+          data: { counter: verification.authenticationInfo.newCounter },
+        });
+
+        const session = await prisma.session.findUnique({ where: { id: credential.sessionId } });
+        if (!session) return null;
+        return { id: session.id, email: session.email, phone: session.phone };
       },
     }),
   ],

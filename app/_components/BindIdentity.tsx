@@ -1,24 +1,21 @@
 "use client";
 
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { signIn } from "next-auth/react";
 import { useState, type FormEvent } from "react";
 
-type Mode = "closed" | "email" | "email-sent" | "phone" | "phone-verify" | "done";
+type Mode = "closed" | "email" | "email-sent" | "done";
 
-async function postJson(url: string, body: unknown): Promise<boolean> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return res.ok;
+async function postJson<T>(url: string): Promise<T | null> {
+  const res = await fetch(url, { method: "POST" });
+  return res.ok ? ((await res.json()) as T) : null;
 }
+
+type ChallengeResponse = { challengeId: string; options: unknown };
 
 export function BindIdentity() {
   const [mode, setMode] = useState<Mode>("closed");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -26,42 +23,87 @@ export function BindIdentity() {
     e.preventDefault();
     setPending(true);
     setError(null);
-    const ok = await postJson("/api/auth/request-magic-link", { email });
+    const res = await fetch("/api/auth/request-magic-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
     setPending(false);
-    if (ok) setMode("email-sent");
+    if (res.ok) setMode("email-sent");
     else setError("Couldn't send that link. Try again in a minute.");
   }
 
-  async function handlePhoneRequest(e: FormEvent) {
-    e.preventDefault();
+  async function handlePasskeyRegister() {
     setPending(true);
     setError(null);
-    const ok = await postJson("/api/auth/request-otp", { phone });
-    setPending(false);
-    if (ok) setMode("phone-verify");
-    else setError("Couldn't send a code. Try again in a minute.");
+    try {
+      const started = await postJson<ChallengeResponse>("/api/auth/passkey/register-options");
+      if (!started) throw new Error("no options");
+
+      const response = await startRegistration({
+        optionsJSON: started.options as Parameters<typeof startRegistration>[0]["optionsJSON"],
+      });
+
+      const verifyRes = await fetch("/api/auth/passkey/register-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: started.challengeId, response }),
+      });
+      if (!verifyRes.ok) throw new Error("verify failed");
+      setMode("done");
+    } catch {
+      setError("Couldn't set up a passkey — this device/browser may not support one, or the prompt was cancelled.");
+    } finally {
+      setPending(false);
+    }
   }
 
-  async function handlePhoneVerify(e: FormEvent) {
-    e.preventDefault();
+  async function handlePasskeySignIn() {
     setPending(true);
     setError(null);
-    const result = await signIn("otp-sms-auth", { phone, code, redirect: false });
-    setPending(false);
-    if (result?.ok) setMode("done");
-    else setError("That code didn't match. Check it and try again.");
+    try {
+      const started = await postJson<ChallengeResponse>("/api/auth/passkey/auth-options");
+      if (!started) throw new Error("no options");
+
+      const response = await startAuthentication({
+        optionsJSON: started.options as Parameters<typeof startAuthentication>[0]["optionsJSON"],
+      });
+
+      const result = await signIn("passkeys", {
+        challengeId: started.challengeId,
+        response: JSON.stringify(response),
+        redirect: false,
+      });
+      if (result?.ok) setMode("done");
+      else setError("That passkey isn't recognized here.");
+    } catch {
+      setError("Sign-in was cancelled, or no passkey is set up for this site yet.");
+    } finally {
+      setPending(false);
+    }
   }
 
   if (mode === "closed") {
     return (
-      <div className="flex gap-3 text-xs text-neutral-500">
-        <button onClick={() => setMode("email")} className="underline">
-          Email me a link
+      <div className="flex flex-col items-center gap-2 text-xs text-neutral-500">
+        <div className="flex gap-3">
+          <button onClick={() => setMode("email")} className="underline">
+            Email me a link
+          </button>
+          <span aria-hidden>·</span>
+          <button onClick={handlePasskeyRegister} disabled={pending} className="underline">
+            Set up a passkey
+          </button>
+        </div>
+        <button onClick={handlePasskeySignIn} disabled={pending} className="underline">
+          Already have a passkey for this site? Sign in
         </button>
-        <span aria-hidden>·</span>
-        <button onClick={() => setMode("phone")} className="underline">
-          Text me a code
-        </button>
+        {/* Phone/SMS sign-in exists and is fully tested (auth.ts's
+            otp-sms-auth provider) but isn't surfaced here — no free
+            ongoing SMS tier exists to actually deliver a code to a real
+            phone. See docs/hosting-and-scaling.md and
+            docs/challenges/passwordless-auth.md. */}
+        {error && <p className="text-red-600">{error}</p>}
       </div>
     );
   }
@@ -76,66 +118,23 @@ export function BindIdentity() {
 
   return (
     <div className="flex w-full max-w-xs flex-col items-center gap-2">
-      {mode === "email" && (
-        <form onSubmit={handleEmailSubmit} className="flex w-full flex-col gap-2">
-          <input
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded bg-neutral-800 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-          >
-            {pending ? "Sending…" : "Send link"}
-          </button>
-        </form>
-      )}
-
-      {mode === "phone" && (
-        <form onSubmit={handlePhoneRequest} className="flex w-full flex-col gap-2">
-          <input
-            type="tel"
-            required
-            placeholder="+49…"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded bg-neutral-800 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-          >
-            {pending ? "Sending…" : "Send code"}
-          </button>
-        </form>
-      )}
-
-      {mode === "phone-verify" && (
-        <form onSubmit={handlePhoneVerify} className="flex w-full flex-col gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            required
-            placeholder="6-digit code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded bg-neutral-800 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-          >
-            {pending ? "Checking…" : "Confirm code"}
-          </button>
-        </form>
-      )}
+      <form onSubmit={handleEmailSubmit} className="flex w-full flex-col gap-2">
+        <input
+          type="email"
+          required
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="rounded border border-neutral-300 px-3 py-1.5 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded bg-neutral-800 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+        >
+          {pending ? "Sending…" : "Send link"}
+        </button>
+      </form>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>

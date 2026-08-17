@@ -41,16 +41,27 @@ depend on a side channel (email/SMS) staying secure.
 
 ## What we actually built
 
-Auth.js (`auth.ts`) with two custom Credentials providers — `magic-link` and
-`otp-sms-auth`, matching krisenchat's real provider IDs — backed by our own
-`MagicLinkToken`/`OtpCode` tables, not Auth.js's built-in Email provider or a
-database Adapter. That was a deliberate choice, not the path of least
-resistance: Auth.js's normal Email-provider flow assumes it owns a `User`
-model and creates one on first sign-in, but T2.3's actual requirement is the
-opposite — bind the verified email/phone to the **existing anonymous
-`Session`** row from Milestone 1, never create a second identity. A
-Credentials provider's `authorize()` gives full control over that binding;
-the built-in Email/Adapter flow doesn't.
+Auth.js (`auth.ts`) with three custom Credentials providers — `magic-link`,
+`otp-sms-auth`, and `passkeys` — matching krisenchat's real provider IDs
+exactly, backed by our own tables, not Auth.js's built-in Email provider or
+a database Adapter. That was a deliberate choice, not the path of least
+resistance: Auth.js's normal Email-provider flow (and its built-in WebAuthn
+support) assumes it owns a `User` model and creates one on first sign-in,
+but T2.3's actual requirement is the opposite — bind the verified
+email/phone/passkey to the **existing anonymous `Session`** row from
+Milestone 1, never create a second identity. A Credentials provider's
+`authorize()` gives full control over that binding; the built-in
+Email/Adapter/WebAuthn flows don't — which is also why Auth.js's built-in
+WebAuthn support (which *requires* a full Adapter) wasn't used here either;
+`@simplewebauthn/server` does the actual protocol work instead, called from
+inside `authorize()` just like the other two providers.
+
+**OTP-SMS specifically is built and tested but not shown in the UI** — no
+free ongoing SMS-delivery tier exists to send a real code to a real phone
+(confirmed while researching `docs/hosting-and-scaling.md`), so surfacing it
+would mean a button that quietly never works for a real visitor. The
+provider, the rate limiting, the lockout — all still there and covered
+below; only `app/_components/BindIdentity.tsx`'s UI was scoped back.
 
 **What's genuinely worth being able to explain, verified live, not just in
 theory:**
@@ -82,6 +93,41 @@ theory:**
   for real — same code path either way, so wiring up Resend later is a
   config change, not a rewrite.
 
+**Passkeys — the part that needed real engineering, not just wiring:**
+
+- **Registration and sign-in are two separate ceremonies**, both
+  challenge/response: `generateRegistrationOptions`/`generateAuthenticationOptions`
+  on the server, `startRegistration`/`startAuthentication` in the browser
+  (`@simplewebauthn/browser`), then a server-side verify step. Both
+  challenges are single-use, short-lived rows (`PasskeyChallenge`) — same
+  anti-replay shape as the magic-link token, for the same reason.
+- **Usernameless by design.** Registration sets `residentKey: "required"`
+  and sign-in sends no `allowCredentials` list — the browser's own passkey
+  picker is the identity lookup, not a prior email/username prompt. Identity
+  resolution happens *after* the browser returns an assertion: we look up
+  which `PasskeyCredential` owns the `credentialId` in the response, and
+  that row's `sessionId` is who signed in — never the cookie of whichever
+  browser initiated the attempt. Verified via the actual options responses:
+  `register-options` returns `authenticatorSelection.residentKey: "required"`,
+  `auth-options` returns no `allowCredentials` field at all.
+- **The relying-party ID is derived per-request** (`lib/webauthn.ts`), not
+  hardcoded, so the same code works against `localhost` in dev and the real
+  Vercel domain in prod. The real constraint this creates: a passkey
+  registered under one origin won't verify under another (a Vercel preview
+  URL vs. the stable production alias, for instance) — WebAuthn ties a
+  credential to the exact origin it was created on. Worth knowing before a
+  live demo, not discovering during one.
+- **What's actually unverifiable by an agent, and why:** the full
+  registration/sign-in ceremony needs a real platform authenticator (Touch
+  ID, a security key) — a biometric or device-password prompt that lives
+  outside the page's DOM entirely. Confirmed everything short of that:
+  well-formed options from both endpoints, an invalid/expired challenge
+  correctly rejected with 400, and — when tried from an automated browser
+  with no accessible authenticator — the UI fails exactly the way it should
+  ("Couldn't set up a passkey," not a hang or a crash). The biometric step
+  itself needs a real browser session on a real device; that part was
+  handed off rather than faked.
+
 **What a production version would need that this doesn't have:**
 
 - The rate limiter is in-memory (`lib/rate-limit.ts`) — correct for one
@@ -110,3 +156,9 @@ theory:**
   link and OTP inherit the security of that channel; passkeys don't, which
   is the actual argument for offering them as a third option rather than a
   redundant one.
+- "How does passkey sign-in know who you are before you've told it
+  anything?" — it doesn't need to. `residentKey: "required"` at
+  registration plus no `allowCredentials` at sign-in makes the credential
+  itself discoverable; the OS's passkey picker *is* the username field.
+  Identity resolution happens server-side afterward, from which credential
+  came back — not from any state the requesting browser already had.

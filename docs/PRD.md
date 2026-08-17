@@ -55,7 +55,7 @@ what-not-to-send-to-an-LLM — under a small, finishable scope.
 ## MVP scope
 
 - Anonymous visitor can start a chat and choose a sign-in method (magic link
-  or OTP) to make the session resumable.
+  or passkey) to make the session resumable.
 - Visitor sees a queue-position / wait-estimate indicator.
 - A seeded "counselor" account can view the queue and open a chat.
 - Messages sync in realtime between visitor and counselor.
@@ -66,8 +66,10 @@ what-not-to-send-to-an-LLM — under a small, finishable scope.
 
 ## Later / explicitly deferred
 
-- Passkeys as a second auth method (magic link/OTP covers the "passwordless"
-  learning goal; passkeys is a stretch task, see `tasks/TASKS.md`).
+- Real SMS delivery for the OTP method — the provider (auth.ts's
+  `otp-sms-auth`) is built and tested, just not surfaced in the UI, since no
+  free ongoing SMS tier exists. Revisit if/when a paid SMS provider is worth
+  it; see `docs/hosting-and-scaling.md`.
 - WhatsApp as a second channel.
 - Multi-language / i18n routing.
 - Counselor-to-counselor handoff, shift scheduling, reporting.

@@ -9,9 +9,10 @@ export default async function Home() {
   const position = sessionId ? await getQueuePosition(sessionId) : null;
 
   const identified = sessionId
-    ? await prisma.session
-        .findUnique({ where: { id: sessionId }, select: { email: true, phone: true } })
-        .then((s) => Boolean(s?.email || s?.phone))
+    ? await Promise.all([
+        prisma.session.findUnique({ where: { id: sessionId }, select: { email: true, phone: true } }),
+        prisma.passkeyCredential.findFirst({ where: { sessionId }, select: { id: true } }),
+      ]).then(([session, passkey]) => Boolean(session?.email || session?.phone || passkey))
     : false;
 
   return (

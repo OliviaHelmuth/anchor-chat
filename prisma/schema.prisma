@@ -111,3 +111,33 @@ model OtpCode {
 
   @@index([phone])
 }
+
+// One row per registered passkey. credentialId is what a sign-in assertion
+// arrives tagged with — that's how we find out *whose* Session this is
+// without ever asking for an email or username first (WebAuthn's
+// "discoverable credential" flow: the OS's passkey picker IS the identity
+// lookup). publicKey is exactly that — public — storing it is not a secret
+// disclosure risk the way the magic-link/OTP hashes are about.
+model PasskeyCredential {
+  id           String   @id @default(cuid())
+  sessionId    String
+  credentialId String   @unique
+  publicKey    String
+  counter      Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+// A short-lived anti-replay nonce for one registration or authentication
+// ceremony. Not an identity lookup (see PasskeyCredential for that) — this
+// table only proves "this particular challenge was issued by us, recently,
+// and hasn't been used yet."
+model PasskeyChallenge {
+  id        String    @id @default(cuid())
+  challenge String
+  sessionId String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
