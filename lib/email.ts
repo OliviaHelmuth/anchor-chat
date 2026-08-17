@@ -37,3 +37,24 @@ export async function sendListenerLoginEmail(email: string, url: string) {
     text: `Sign in here: ${url}\n\nThis link expires in 15 minutes and only works once.`,
   });
 }
+
+/** FR-8.2 — notifies the admin (Menty B) that a new Listener application needs review. */
+export async function sendApplicationNotificationEmail(
+  adminEmail: string,
+  application: { name: string; email: string; message: string },
+  reviewUrl: string
+) {
+  if (!resend) {
+    console.log(
+      `[dev] New Listener application from ${application.name} <${application.email}>: ${reviewUrl}`
+    );
+    return;
+  }
+
+  await resend.emails.send({
+    from: "Anchor Chat <onboarding@resend.dev>",
+    to: adminEmail,
+    subject: "New Listener application",
+    text: `${application.name} <${application.email}> applied to become a Listener:\n\n"${application.message}"\n\nReview it here: ${reviewUrl}`,
+  });
+}

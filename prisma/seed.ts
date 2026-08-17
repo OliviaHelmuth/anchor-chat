@@ -18,10 +18,16 @@ async function main() {
   // that route lowercases the submitted email before looking it up.
   const email = rawEmail.trim().toLowerCase();
 
+  // T3.5.7 — Menty B's own profile, so /listeners has at least one real
+  // entry to demo without waiting on a real applicant to get approved.
+  const displayName = "Menty B";
+  const bio =
+    "Founder and admin of Anchor Chat. Not a therapist or counselor — just the person who reads every application and keeps this place running.";
+
   const listener = await prisma.listener.upsert({
     where: { email },
-    update: { isAdmin: true },
-    create: { email, isAdmin: true },
+    update: { isAdmin: true, displayName, bio },
+    create: { email, isAdmin: true, displayName, bio },
   });
 
   console.log(`Seeded admin Listener "Menty B": ${listener.email} (id: ${listener.id})`);

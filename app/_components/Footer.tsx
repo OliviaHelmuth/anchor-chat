@@ -33,6 +33,16 @@ export function Footer() {
                   Start a chat
                 </a>
               </li>
+              <li>
+                <Link href="/apply" className="hover:underline">
+                  Become a Listener
+                </Link>
+              </li>
+              <li>
+                <Link href="/listeners" className="hover:underline">
+                  Meet the Listeners
+                </Link>
+              </li>
             </ul>
           </div>
 

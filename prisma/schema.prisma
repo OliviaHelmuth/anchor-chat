@@ -18,7 +18,10 @@ model Session {
   createdAt DateTime @default(now())
 
   listenerId String?
-  listener   Listener? @relation(fields: [listenerId], references: [id])
+  // SetNull, not the Restrict default: removing a Listener's listing
+  // (FR-9.3, T3.5.6) must not be blocked by — or destroy — past visitor
+  // sessions they claimed.
+  listener   Listener? @relation(fields: [listenerId], references: [id], onDelete: SetNull)
 
   queueEntry QueueEntry?
   messages   Message[]
@@ -75,15 +78,66 @@ enum UrgencyTier {
 }
 
 // email is real, not synthetic seed data — see the narrow carve-out in
-// docs/technical-requirements.md. displayName/bio arrive with Milestone 3.5's
-// application/profile subsystem (FR-9); this model stays minimal until then.
+// docs/technical-requirements.md.
 model Listener {
-  id       String    @id @default(cuid())
-  email    String    @unique
-  isAdmin  Boolean   @default(false) // true only for the seeded admin, "Menty B" (FR-4.4)
-  sessions Session[]
+  id          String    @id @default(cuid())
+  email       String    @unique
+  isAdmin     Boolean   @default(false) // true only for the seeded admin, "Menty B" (FR-4.4)
+  // Public profile fields (FR-9.1) — set at seed time (Menty B) or left for
+  // the Listener to fill in later; nullable because approval (T3.5.3)
+  // creates the row before the Listener has necessarily chosen either.
+  displayName String?
+  bio         String?
+  sessions    Session[]
 
   loginTokens ListenerLoginToken[]
+
+  // Reviews this Listener has received vs. authored — two distinct relations
+  // on the same model, so both sides need an explicit @relation name.
+  reviewsReceived ListenerReview[] @relation("ReviewSubject")
+  reviewsAuthored ListenerReview[] @relation("ReviewAuthor")
+}
+
+// FR-8 — real applicant data (name, email, message), deliberately never
+// joined to visitor Session/Message data (docs/technical-requirements.md's
+// carve-out). No FK to Listener: approval creates a separate Listener row
+// rather than promoting this one, so a rejected application never becomes
+// login-capable just because a field got flipped.
+model ListenerApplication {
+  id         String            @id @default(cuid())
+  name       String
+  email      String
+  message    String
+  status     ApplicationStatus @default(PENDING)
+  createdAt  DateTime          @default(now())
+  reviewedAt DateTime?
+
+  @@index([status, createdAt])
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// FR-9.2 — authorship is enforced by requireListener() at the route level
+// (app/api/listeners/[id]/reviews/route.ts): a Listener row only ever exists
+// for a seeded or admin-approved account, so "is a Listener" already means
+// "is approved" — there's no separate status field to check here.
+model ListenerReview {
+  id       String @id @default(cuid())
+  body     String
+
+  listenerId String
+  listener   Listener @relation("ReviewSubject", fields: [listenerId], references: [id], onDelete: Cascade)
+
+  authorListenerId String
+  author           Listener @relation("ReviewAuthor", fields: [authorListenerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([listenerId])
 }
 
 // Mirrors MagicLinkToken's shape and reasoning (hash only, single-use,
@@ -94,7 +148,7 @@ model ListenerLoginToken {
   id         String    @id @default(cuid())
   tokenHash  String    @unique
   listenerId String
-  listener   Listener  @relation(fields: [listenerId], references: [id])
+  listener   Listener  @relation(fields: [listenerId], references: [id], onDelete: Cascade)
   expiresAt  DateTime
   usedAt     DateTime?
   createdAt  DateTime  @default(now())
