@@ -15,7 +15,7 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 - [x] T0.3 — Add Prisma, write the initial schema from `docs/architecture.md`'s ER diagram (`prisma/schema.prisma`), migration `20260817143232_init` applied
 - [x] T0.4 — Provision Ably free app, add key to env vars (local `.env` + Vercel Production/Preview)
 - [x] T0.5 — Deploy the empty scaffold to Vercel, confirm a public URL works [FR-7.1] — https://anchor-chat-kappa.vercel.app (200 OK)
-- [ ] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2] — **needs you**: `sentry-cli login` needs an interactive terminal (its browser-token flow doesn't work piped through a background shell); sign up at sentry.io yourself (email/Google) and hand me the DSN, or paste it into `.env` directly
+- [x] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2] — `@sentry/nextjs`, `instrumentation.ts` (server/edge) + `instrumentation-client.ts` (client) + `app/global-error.tsx`, DSN in `.env` and Vercel Production/Preview. Source-map upload not configured (needs a Sentry auth token, not just the DSN) — fine for now, revisit if stack traces in the dashboard turn out unreadably minified
 - [x] T0.7 — Push local repo to GitHub — https://github.com/OliviaHelmuth/anchor-chat (public)
 - [ ] T0.8 — Connect the GitHub repo to the Vercel project for auto-deploy-on-push — currently failing ("Failed to connect ... Make sure you have access"), likely fallout from the ongoing GitHub outage or Vercel's GitHub App not yet authorized since we signed into Vercel via email; retry once GitHub's incident clears
 
