@@ -21,12 +21,12 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 
 ## Milestone 1 — Anonymous entry & queue [FR-1, FR-3]
 
-- [ ] T1.1 — Landing page with a single "start chat" action, no form fields
-- [ ] T1.2 — `POST /api/chat/start`: create anonymous `Session` + `QueueEntry` rows [FR-1.1, FR-1.2]
-- [ ] T1.3 — Queue-position calculation: position = count of `waiting` entries ahead by `joinedAt` [FR-3.1]
-- [ ] T1.4 — Wait-time estimate: (queue depth) ÷ (rolling avg claims/minute over last N claims), not a hardcoded number [FR-3.2]
-- [ ] T1.5 — Subscribe the visitor's client to the `queue` Ably channel so position updates live [FR-3.3]
-- [ ] T1.6 — Schema review: confirm no name/DOB/address field exists anywhere [FR-1.3]
+- [x] T1.1 — Landing page with a single "start chat" action, no form fields (`app/page.tsx`, `app/_components/StartChat.tsx`)
+- [x] T1.2 — `POST /api/chat/start`: create anonymous `Session` + `QueueEntry` rows [FR-1.1, FR-1.2] — idempotent on reload/double-click, sets the `anchor_session` httpOnly cookie
+- [x] T1.3 — Queue-position calculation: position = count of `waiting` entries ahead by `joinedAt` [FR-3.1] (`lib/queue.ts`) — verified with a real second concurrent session: correctly landed at #2
+- [x] T1.4 — Wait-time estimate: (queue depth) ÷ (rolling avg claims/minute over last N claims), not a hardcoded number [FR-3.2] — cold-start fallback (5 min) verified live since no claims exist yet (Milestone 3 hasn't shipped claiming)
+- [x] T1.5 — Subscribe the visitor's client to the `queue` Ably channel so position updates live [FR-3.3] — token-auth endpoint scoped subscribe-only, channel carries no personal data (ping-then-refetch, not broadcast), 20s poll as fallback
+- [x] T1.6 — Schema review: confirm no name/DOB/address field exists anywhere [FR-1.3] — `grep -inE "name|dob|birth|address" prisma/schema.prisma` matches only the comment stating the rule, no field
 
 ## Milestone 2 — Passwordless auth · Challenge 1 [FR-2]
 
