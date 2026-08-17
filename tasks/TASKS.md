@@ -27,6 +27,7 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 - [x] T1.4 — Wait-time estimate: (queue depth) ÷ (rolling avg claims/minute over last N claims), not a hardcoded number [FR-3.2] — cold-start fallback (5 min) verified live since no claims exist yet (Milestone 3 hasn't shipped claiming)
 - [x] T1.5 — Subscribe the visitor's client to the `queue` Ably channel so position updates live [FR-3.3] — token-auth endpoint scoped subscribe-only, channel carries no personal data (ping-then-refetch, not broadcast), 20s poll as fallback
 - [x] T1.6 — Schema review: confirm no name/DOB/address field exists anywhere [FR-1.3] — `grep -inE "name|dob|birth|address" prisma/schema.prisma` matches only the comment stating the rule, no field
+- [x] T1.7 — Visitor can leave the queue: cancel action removes the `QueueEntry`, closes the chat widget, returns to the landing page [FR-3.4] — `POST /api/chat/leave` (`lib/queue.ts`'s `leaveQueue`, `deleteMany` for idempotency on a double-click), "Leave the queue" link in `WaitingRoom`, publishes the same `queue` Ably update `start` uses. Verified live: leaving returns to the hero landing page, a second leave call is a no-op (200, not 500), starting again after leaving creates a fresh queue entry.
 
 ## Milestone 2 — Passwordless auth · Challenge 1 [FR-2]
 
@@ -55,19 +56,42 @@ sticker badges) and adapted into Anchor Chat's own palette/voice, not copied.
 
 **Why no testimonials:** fabricated user quotes/reviews for a mental-health-adjacent product — even clearly fictional ones — read as presenting invented experiences as genuine, which is the wrong kind of "trust" to fake. Trust here comes from process transparency (open-source, what's collected, who answers) instead.
 
-## Milestone 3 — Counselor queue view [FR-4]
+## Milestone 3 — Listener queue view [FR-4]
 
-- [ ] T3.1 — Seed one counselor account directly in the DB (no self-serve counselor signup)
-- [ ] T3.2 — Role check middleware: counselor-only routes reject a visitor session server-side [security, technical-requirements.md]
-- [ ] T3.3 — Counselor queue page subscribed to the `queue` Ably channel, live list [FR-4.2]
-- [ ] T3.4 — `POST /api/queue/:id/claim`: assign counselor, flip status, broadcast removal [FR-4.3]
+Role renamed from "counselor" to "Listener" — confirmed safe in
+`research/legal-terminology.md` (plain English, not a licensing-scheme title
+anywhere checked). "Brain Doc" was considered and rejected by that same
+research — retired as a candidate name entirely, human or future AI.
+
+- [ ] T3.1 — Seed one Listener account directly in the DB, flagged `isAdmin: true` — this is "Menty B," the admin/main account owner, not a self-serve signup [FR-4.1]
+- [ ] T3.2 — Role check middleware: Listener-only routes reject a visitor session server-side; a separate `isAdmin` check gates admin-only routes [FR-4.4, security, technical-requirements.md]
+- [ ] T3.3 — Listener queue page subscribed to the `queue` Ably channel, live list [FR-4.2]
+- [ ] T3.4 — `POST /api/queue/:id/claim`: assign Listener, flip status, broadcast removal [FR-4.3]
+
+## Milestone 3.5 — Listener applications, profiles & peer reviews [FR-8, FR-9]
+
+Real data, real applicants — narrow, deliberate exception to "no real user
+data," scoped to this subsystem only. See the carve-out in
+`docs/technical-requirements.md` and the reasoning in `docs/PRD.md`'s Goals
+section before starting. Depends on Milestone 3 (needs the Listener role/
+admin flag to exist first).
+
+- [ ] T3.5.1 — Public "become a Listener" application form (name, email, message) + `LISTENER_APPLICATION` table [FR-8.1]
+- [ ] T3.5.2 — On submit, email the admin account via Resend [FR-8.2]
+- [ ] T3.5.3 — Admin-only review view: list pending applications, approve/reject [FR-8.3, FR-8.4] — approve creates the `LISTENER` row (login-capable), reject leaves no platform access
+- [ ] T3.5.4 — Public Listener profile page: display name + bio, no auth required to view [FR-9.1]
+- [ ] T3.5.5 — Peer review: an approved Listener can leave a review on another Listener's profile; enforce `role=listener, status=approved` server-side, never accept a review from a visitor session [FR-9.2]
+- [ ] T3.5.6 — Admin can remove a review or a Listener's listing [FR-9.3]
+- [ ] T3.5.7 — Seed Menty B's own profile as the first Listener — display name "Menty B" (confirmed safe naming, `research/legal-terminology.md`), write the bio copy
 
 ## Milestone 4 — Realtime messaging · Challenge 2 [FR-5]
 
 - [ ] T4.1 — `POST /api/chat/:id/messages`: write to DB with server-assigned sequence, then publish on `chat:{id}` [FR-5.1, FR-5.2]
-- [ ] T4.2 — Chat UI: message list + composer, subscribed to `chat:{id}`
+- [ ] T4.2 — Chat UI as a bottom-right widget (open/collapse), not a full-page takeover; message list + composer, subscribed to `chat:{id}` [FR-5.5]
+- [ ] T4.2.1 — Optional display-name field on widget open, defaults to "Anonymous" if left blank; stored on `Session.displayName` [FR-5.5]
+- [ ] T4.2.2 — Queue roster panel in the widget: shows other waiting visitors by display name/"Anonymous", live off the `queue` channel [FR-5.6]
 - [ ] T4.3 — Reconnect handling: on Ably reconnect, re-fetch messages since last known sequence [FR-5.3]
-- [ ] T4.4 — Manual test: two browser tabs (visitor + counselor), confirm ordering holds under rapid concurrent sends
+- [ ] T4.4 — Manual test: two browser tabs (visitor + Listener), confirm ordering holds under rapid concurrent sends
 - [ ] T4.5 — *(stretch)* typing indicator [FR-5.4]
 
 ## Milestone 5 — AI-assisted triage · Challenge 3 [FR-6]
@@ -76,13 +100,13 @@ sticker badges) and adapted into Anchor Chat's own palette/voice, not copied.
 - [ ] T5.2 — Redaction step: strip email/phone/session token/IP before building the prompt — write this as its own tested unit, not inline [FR-6.2]
 - [ ] T5.3 — Unit tests for the redaction step specifically (this is the part that most needs proving) [technical-requirements.md testing]
 - [ ] T5.4 — Wire classification into the message-send path; on failure, tag `unclassified` and still deliver [FR-6.3]
-- [ ] T5.5 — Show the tier only in the counselor view, never to the visitor [FR-6.4]
+- [ ] T5.5 — Show the tier only in the Listener view, never to the visitor [FR-6.4]
 - [ ] T5.6 — Write `docs/challenges/ai-triage.md`: exact fields stripped, and what you'd tell an interviewer about the trade-offs
 
 ## Milestone 6 — Queue design exercise · Challenge 4
 
-- [ ] T6.1 — Write up the wait-time-estimate algorithm from T1.4 as a standalone doc with the formula and its failure modes (empty history, sudden counselor drop-off)
-- [ ] T6.2 — Whiteboard-style writeup: how you'd fairly route an incoming chat across multiple available counselors (round robin vs. least-loaded vs. skill match) — no code required, `docs/challenges/queue-design.md`
+- [ ] T6.1 — Write up the wait-time-estimate algorithm from T1.4 as a standalone doc with the formula and its failure modes (empty history, sudden Listener drop-off)
+- [ ] T6.2 — Whiteboard-style writeup: how you'd fairly route an incoming chat across multiple available Listeners (round robin vs. least-loaded vs. skill match) — no code required, `docs/challenges/queue-design.md`
 
 ## Milestone 7 — Node vs Python API exercise · Challenge 5
 
@@ -96,7 +120,7 @@ sticker badges) and adapted into Anchor Chat's own palette/voice, not copied.
 
 ## Milestone 9 — Demo readiness
 
-- [ ] T9.1 — Seed script: synthetic visitor + counselor + a short fictional conversation, runnable from a clean clone [FR-7.3]
+- [ ] T9.1 — Seed script: synthetic visitor + Listener + a short fictional conversation, runnable from a clean clone [FR-7.3]
 - [ ] T9.2 — README "getting started" verified against a genuinely fresh checkout
 - [ ] T9.3 — Time a live demo run end to end, confirm it's under 5 minutes (PRD success criterion)
 - [ ] T9.4 — Re-read `docs/hosting-and-scaling.md` and make sure you can explain every choice out loud without notes

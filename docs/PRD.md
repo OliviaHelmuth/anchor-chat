@@ -6,7 +6,8 @@
 
 Anchor Chat is a small, originally-branded demo of a text-based crisis-support
 chat platform: someone in distress starts an anonymous chat, sees a live wait
-estimate, and gets connected to a volunteer counselor. It exists to practice
+estimate, and gets connected to a volunteer "Listener" (name confirmed safe
+in `research/legal-terminology.md`). It exists to practice
 for a krisenchat.de Full Stack Engineer technical challenge — it demonstrates
 the same architecture (passwordless auth, live queue, realtime messaging, one
 privacy-conscious AI feature) without being krisenchat's product. See
@@ -26,43 +27,70 @@ what-not-to-send-to-an-LLM — under a small, finishable scope.
 - **Primary (in the fiction of the product):** a young person in crisis,
   under 25, who wants to talk to someone without creating an account or
   giving their name.
-- **Secondary:** a volunteer counselor picking up chats from a queue.
+- **Secondary:** a volunteer "Listener" (working term, see
+  `research/legal-terminology.md`) picking up chats from a queue.
+- **Admin:** you, as the single account ("Menty B") that reviews Listener
+  applications, approves them, and holds elevated access the rest of the
+  product doesn't grant — see FR-4.4, FR-8, FR-9 in
+  `docs/product-requirements.md`.
 - **Real audience of this repo:** you, preparing for an interview, and
   whoever reviews the code with you (interviewer, mentor).
 
 ## Goals
 
 1. Ship a working, end-to-end vertical slice: anonymous visitor → passwordless
-   sign-in → queued chat → realtime message exchange with a counselor role.
+   sign-in → queued chat → realtime message exchange with a Listener role.
 2. Implement one AI-assisted feature (message urgency triage or session
    summarization) with an explicit, defensible privacy design.
 3. Make every architectural decision traceable to a reason — stack choice,
    hosting choice, and auth design should each have a one-paragraph "why" you
    can say out loud in an interview.
 4. Keep the whole thing free to run and reproducible from a clean checkout.
+5. *(Added Milestone 3.5, beyond pure interview-prep scope — an explicit
+   portfolio-product goal, not one of the six challenge topics)*: demonstrate
+   a lightweight trust/quality mechanism for a peer-support network — a real,
+   disclosed Listener application flow, personal admin approval, and public
+   profiles carrying peer reviews from *other approved Listeners* (never from
+   visitors — see the no-fabricated-testimonials reasoning logged in
+   Milestone 2.5 of `tasks/TASKS.md`, which this deliberately stays
+   consistent with).
 
 ## Non-goals
 
-- Not a real crisis service. No real user data, no real crisis-response
-  protocol, no claim of clinical or safety guarantees.
+- Not a real crisis service. No real crisis-response protocol, no claim of
+  clinical or safety guarantees, no claim that "Listener" approval constitutes
+  any professional license or credential (see
+  `research/legal-terminology.md`).
 - Not a pixel-for-pixel or content-for-content copy of krisenchat.de.
-- Not building a counselor-training or case-management system — the counselor
-  side is a minimal queue + chat view, not a full admin product.
+- Not building a full case-management system — no shift scheduling, no
+  Listener-to-Listener handoff, no case notes. The admin/vetting layer
+  (Milestone 3.5) is a bounded exception to the old "minimal queue + chat
+  view only" line: it's a real, disclosed application → approval → profile
+  flow, because the product goal now explicitly includes demonstrating that
+  trust mechanism — but it stops there, short of a full ops/admin product.
 - Not optimizing for scale we'll never hit — architecture should be
   *scale-aware* (see `docs/hosting-and-scaling.md`) but the MVP targets
   dozens of concurrent users, not thousands.
+- Not yet building AI Listener personas — flagged as a real future direction
+  (a human-vs-bot distinction will need to be unmistakable in the UI when it
+  lands) but out of scope until a milestone is actually scoped for it. Naming
+  is open but not "Brain Doc" — see the Later/deferred note below.
 
 ## MVP scope
 
 - Anonymous visitor can start a chat and choose a sign-in method (magic link
   or passkey) to make the session resumable.
 - Visitor sees a queue-position / wait-estimate indicator.
-- A seeded "counselor" account can view the queue and open a chat.
-- Messages sync in realtime between visitor and counselor.
+- A seeded Listener account can view the queue and open a chat; one seeded
+  account ("Menty B") also holds admin access.
+- Messages sync in realtime between visitor and Listener.
 - One AI feature: incoming messages are classified into an urgency tier
-  before a counselor sees them, with PII stripped from anything sent to the
+  before a Listener sees them, with PII stripped from anything sent to the
   model.
 - Deployed and reachable at a public free-tier URL.
+- *(Milestone 3.5, added)* Real, disclosed Listener applications routed to
+  the admin, admin approval, public Listener profiles, peer reviews from
+  other approved Listeners — see FR-8/FR-9.
 
 ## Later / explicitly deferred
 
@@ -72,7 +100,11 @@ what-not-to-send-to-an-LLM — under a small, finishable scope.
   it; see `docs/hosting-and-scaling.md`.
 - WhatsApp as a second channel.
 - Multi-language / i18n routing.
-- Counselor-to-counselor handoff, shift scheduling, reporting.
+- Listener-to-Listener handoff, shift scheduling, reporting.
+- AI Listener personas — see the Non-goals note. Naming for these is still
+  open, but **not** "Brain Doc": `research/legal-terminology.md` rejected it
+  for the whole product (the risk is about a health-adjacent product using
+  doctor-adjacent language, not about who — human or AI — is behind it).
 
 ## Success criteria
 

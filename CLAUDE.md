@@ -38,7 +38,13 @@ stays clean between runs.
 - Stack is fixed to match the job posting: Next.js (App Router) + TypeScript +
   Tailwind on the frontend, Node.js on the backend, Postgres via Prisma. See
   `docs/technical-requirements.md` before introducing a new dependency.
-- No real user data, ever — this is a portfolio project. Seed data only.
+- No real user data, ever, on the visitor/chat side — this is a portfolio
+  project, seed data only. **One narrow, deliberate exception:** the Listener
+  application/profile subsystem (Milestone 3.5, FR-8/FR-9) collects real
+  name/email from real applicants, because the admin is personally vetting
+  them. See the carve-out and its conditions in
+  `docs/technical-requirements.md` before touching that subsystem — it does
+  not license "real data" anywhere else in the app.
 - Prefer the free-tier services listed in `docs/hosting-and-scaling.md` unless
   a task explicitly calls for testing a paid-tier constraint.
 

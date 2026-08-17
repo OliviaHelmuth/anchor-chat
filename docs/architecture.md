@@ -68,12 +68,13 @@ sequenceDiagram
     participant DB as Postgres
     participant RT as Ably
     participant AI as AI classifier
-    participant C as Counselor (browser)
+    participant C as Listener (browser)
 
     V->>API: POST /api/chat/start
     API->>DB: create anon session + queue entry
     API->>RT: publish queue-update
     RT-->>C: queue-update (new entry)
+    RT-->>V: queue-update (roster visible to other waiting visitors, FR-5.6)
 
     V->>API: POST /api/auth/signin (magic link request)
     API-->>V: "check your email"
@@ -82,9 +83,9 @@ sequenceDiagram
     API->>DB: bind session to email, mark verified
 
     C->>API: POST /api/queue/:id/claim
-    API->>DB: assign counselor, remove from open queue
+    API->>DB: assign listener, remove from open queue
     API->>RT: publish queue-update (removed)
-    RT-->>C: (other counselors' views update)
+    RT-->>C: (other listeners' views update)
 
     V->>API: POST /api/chat/:id/messages {text}
     API->>AI: classifyUrgency(text, PII stripped)
@@ -101,12 +102,16 @@ sequenceDiagram
 erDiagram
     SESSION ||--o{ MESSAGE : has
     SESSION ||--o| QUEUE_ENTRY : has
-    COUNSELOR ||--o{ SESSION : claims
+    LISTENER ||--o{ SESSION : claims
+    LISTENER ||--o| LISTENER_APPLICATION : "approved from"
+    LISTENER ||--o{ LISTENER_REVIEW : "authors (as reviewer)"
+    LISTENER ||--o{ LISTENER_REVIEW : "receives (as subject)"
     SESSION {
         string id PK
         string email "nullable until bound"
         string phone "nullable until bound"
-        string counselorId FK "nullable until claimed"
+        string displayName "nullable, visitor-chosen, defaults to Anonymous in UI"
+        string listenerId FK "nullable until claimed"
         datetime createdAt
     }
     QUEUE_ENTRY {
@@ -117,20 +122,47 @@ erDiagram
     MESSAGE {
         string id PK
         string sessionId FK
-        string sender "visitor|counselor"
+        string sender "visitor|listener"
         text body
         string urgencyTier "nullable, set by AI classifier"
         datetime createdAt
     }
-    COUNSELOR {
+    LISTENER {
         string id PK
+        string email "real, not synthetic — see technical-requirements.md carve-out"
+        string displayName
+        string bio "nullable"
+        boolean isAdmin "true only for the seeded admin account (Menty B)"
+    }
+    LISTENER_APPLICATION {
+        string id PK
+        string name
         string email
+        text message
+        string status "pending|approved|rejected"
+        datetime submittedAt
+        datetime decidedAt "nullable"
+    }
+    LISTENER_REVIEW {
+        string id PK
+        string subjectListenerId FK
+        string authorListenerId FK
+        text body
+        datetime createdAt
     }
 ```
 
-Note what's deliberately **not** modeled: no `name`, `dateOfBirth`, or
-`address` fields anywhere (FR-1.3). The schema itself is part of the privacy
-design, not just the code that reads from it.
+Note what's deliberately **not** modeled on `SESSION`: no `dateOfBirth` or
+`address` field anywhere, and `displayName` is an optional, visitor-chosen
+pseudonym shown to other queue members (FR-5.5) — not an identity field, and
+never required (FR-1.3). The schema itself is part of the privacy design, not
+just the code that reads from it.
+
+`LISTENER`/`LISTENER_APPLICATION` are the one deliberate exception: real
+name, real email, by design (FR-8, FR-9) — see the carve-out in
+`docs/technical-requirements.md`. Keep this data on its own tables, never
+joined into `SESSION`/`MESSAGE` in a way that would blur visitor anonymity
+with Listener identity.
 
 ## Request flow for the AI feature specifically
 
