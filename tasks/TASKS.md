@@ -30,13 +30,13 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 
 ## Milestone 2 — Passwordless auth · Challenge 1 [FR-2]
 
-- [ ] T2.1 — Install Auth.js, configure a `magic-link` credentials provider backed by Resend [FR-2.1]
-- [ ] T2.2 — Magic link token: 15-minute expiry, single-use, invalidate on first successful use [FR-2.2, FR-2.3]
-- [ ] T2.3 — On successful magic-link callback, bind the email to the existing anonymous `Session` (don't create a second user)
-- [ ] T2.4 — OTP provider: 6-digit code, 5-minute expiry, 5-attempt lockout, logged to server console instead of real SMS [FR-2.4]
-- [ ] T2.5 — Rate-limit `POST /api/auth/signin/*` (fixed window, e.g. 5 req/min/IP)
-- [ ] T2.6 — Write `docs/challenges/passwordless-auth.md` notes on what changed vs. a production version (real SMS, sliding-window limiter)
-- [ ] T2.7 — *(stretch)* Passkey registration + sign-in via Auth.js WebAuthn [FR-2.5]
+- [x] T2.1 — Install Auth.js, configure a `magic-link` credentials provider backed by Resend [FR-2.1] — custom Credentials provider (not the built-in Email/Adapter flow — see T2.3), Resend wired with a console-log fallback when `RESEND_API_KEY` is unset
+- [x] T2.2 — Magic link token: 15-minute expiry, single-use, invalidate on first successful use [FR-2.2, FR-2.3] — hashed at rest, verified live: replaying a used token is rejected
+- [x] T2.3 — On successful magic-link callback, bind the email to the existing anonymous `Session` (don't create a second user) — plus the non-obvious part: if the email already belongs to a *different* Session (returning visitor, new browser), resume that one instead. Verified with two separate cookie jars.
+- [x] T2.4 — OTP provider: 6-digit code, 5-minute expiry, 5-attempt lockout, logged to server console instead of real SMS [FR-2.4] — same resume-by-phone logic as email, verified live (wrong code rejected, correct code signs in)
+- [x] T2.5 — Rate-limit the auth **request** endpoints (`/api/auth/request-magic-link`, `/api/auth/request-otp` — the actual spam vector, not `/api/auth/signin/*` which Auth.js owns) — fixed window, 5 req/min/IP, verified live (429 on the 5th/6th rapid request)
+- [x] T2.6 — Write `docs/challenges/passwordless-auth.md` notes on what changed vs. a production version (real SMS, sliding-window limiter, orphaned anonymous QueueEntry on resume)
+- [ ] T2.7 — *(stretch, deferred per PRD)* Passkey registration + sign-in via Auth.js WebAuthn [FR-2.5]
 
 ## Milestone 3 — Counselor queue view [FR-4]
 

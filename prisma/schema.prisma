@@ -79,3 +79,35 @@ model Counselor {
   email    String    @unique
   sessions Session[]
 }
+
+// Only the hash is stored — same reasoning as a password hash, even though
+// the raw token is high-entropy and unguessable: a DB leak or a stray log
+// line shouldn't hand out a working sign-in link. See
+// docs/challenges/passwordless-auth.md for the full write-up.
+model MagicLinkToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  email     String
+  sessionId String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+// codeHash, not code: a 6-digit code is low-entropy by nature (1e6
+// possibilities), so the real protection is the 5-attempt lockout below,
+// not the hash — but there's no reason to store it in the clear either.
+model OtpCode {
+  id        String    @id @default(cuid())
+  phone     String
+  codeHash  String
+  sessionId String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone])
+}

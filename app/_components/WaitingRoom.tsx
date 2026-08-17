@@ -2,6 +2,7 @@
 
 import * as Ably from "ably";
 import { useEffect, useRef, useState } from "react";
+import { BindIdentity } from "./BindIdentity";
 
 type Position = { position: number; waitSeconds: number };
 
@@ -17,7 +18,13 @@ function formatWait(seconds: number): string {
   return `about ${hours} ${hours === 1 ? "hour" : "hours"}`;
 }
 
-export function WaitingRoom({ initial }: { initial: Position }) {
+export function WaitingRoom({
+  initial,
+  identified,
+}: {
+  initial: Position;
+  identified: boolean;
+}) {
   const [state, setState] = useState<Position>(initial);
   const fetchingRef = useRef(false);
 
@@ -72,6 +79,15 @@ export function WaitingRoom({ initial }: { initial: Position }) {
         Someone will be with you as soon as they&apos;re free. You don&apos;t need to do
         anything else right now.
       </p>
+
+      {!identified && (
+        <div className="mt-2 flex flex-col items-center gap-2 border-t border-neutral-100 pt-4">
+          <p className="text-xs text-neutral-400">
+            Want to be able to pick this back up later?
+          </p>
+          <BindIdentity />
+        </div>
+      )}
     </div>
   );
 }

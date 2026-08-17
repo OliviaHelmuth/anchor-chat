@@ -39,11 +39,65 @@ response protocol proves possession of the private key. No secret ever
 crosses the network — categorically different from the other two, which both
 depend on a side channel (email/SMS) staying secure.
 
-## What we built here
+## What we actually built
 
-See `tasks/TASKS.md` Milestone 2. Magic link + OTP (logged to console instead
-of real SMS — see `docs/hosting-and-scaling.md` for why no free SMS tier
-exists). Passkeys are a stretch task.
+Auth.js (`auth.ts`) with two custom Credentials providers — `magic-link` and
+`otp-sms-auth`, matching krisenchat's real provider IDs — backed by our own
+`MagicLinkToken`/`OtpCode` tables, not Auth.js's built-in Email provider or a
+database Adapter. That was a deliberate choice, not the path of least
+resistance: Auth.js's normal Email-provider flow assumes it owns a `User`
+model and creates one on first sign-in, but T2.3's actual requirement is the
+opposite — bind the verified email/phone to the **existing anonymous
+`Session`** row from Milestone 1, never create a second identity. A
+Credentials provider's `authorize()` gives full control over that binding;
+the built-in Email/Adapter flow doesn't.
+
+**What's genuinely worth being able to explain, verified live, not just in
+theory:**
+
+- **Both tokens are hashed at rest** (`lib/tokens.ts`, SHA-256) — the
+  magic-link token because a DB leak or stray log line shouldn't hand out a
+  working sign-in link even though it's unguessable by brute force; the OTP
+  code because there's no reason to store a 6-digit number in the clear
+  either, even though its real protection is the 5-attempt lockout, not hash
+  strength.
+- **Single-use is enforced by marking the token used *before* anything
+  else** — confirmed by replaying a used token and getting rejected
+  (`CredentialsSignin`), not just assumed.
+- **Returning-visitor resume, the non-obvious part of T2.3.** If the email
+  or phone being verified already belongs to a *different* Session (signing
+  in from a new browser/device), `bindOrResumeByEmail`/`bindOrResumeByPhone`
+  in `auth.ts` resume that original Session instead of leaving the identity
+  split across two rows. Verified with two separate cookie jars: the second
+  browser's `/api/auth/session` came back with the *first* browser's session
+  id, not its own freshly-created one.
+- **Rate limiting lives on the request step** (`/api/auth/request-magic-link`,
+  `/api/auth/request-otp`), not the verify step — `lib/rate-limit.ts`, 5
+  requests/minute/IP, fixed-window. Confirmed live: the 5th+6th rapid
+  requests in a window return 429.
+- **No real SMS or email required to fully test this.** OTP always logs to
+  the server console (no free ongoing SMS tier exists — see
+  `docs/hosting-and-scaling.md`). Magic link does the same
+  (`lib/email.ts`) *unless* `RESEND_API_KEY` is set, in which case it sends
+  for real — same code path either way, so wiring up Resend later is a
+  config change, not a rewrite.
+
+**What a production version would need that this doesn't have:**
+
+- The rate limiter is in-memory (`lib/rate-limit.ts`) — correct for one
+  instance, wrong for multiple. A real deployment needs a shared store
+  (Redis/Upstash) and probably a sliding window instead of fixed, since
+  fixed windows let a burst straddle the boundary and briefly double the
+  effective rate.
+- No real SMS provider wired up (Twilio/Vonage/Sinch, per the recon's guess
+  at krisenchat's own stack) — intentional for this project, not something
+  to gloss over as "basically done."
+- Orphaned anonymous `QueueEntry` rows: when a returning visitor resumes an
+  older Session from a new browser, the *fresh* anonymous Session created by
+  that new browser's "start chat" is left behind, still `WAITING`, now
+  disconnected from anyone. Harmless for a demo; a production version would
+  want a cleanup job or a check to avoid ever creating that orphan in the
+  first place.
 
 ## Questions to have a sharp answer for
 

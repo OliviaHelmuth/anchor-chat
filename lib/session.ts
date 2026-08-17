@@ -1,12 +1,18 @@
 import { cookies } from "next/headers";
+import { auth } from "@/auth";
 
-// Interim, pre-Auth.js identity: an unguessable cookie naming a Session
-// row. Milestone 2 upgrades this to a real Auth.js session bound to an
-// email/phone; until then, this cookie *is* the visitor's whole identity —
-// which is the point (FR-1.1: usable with zero fields filled in).
+// Anonymous identity: an unguessable cookie naming a Session row, set the
+// moment someone clicks "start chat" with zero fields filled in (FR-1.1).
+// Once Milestone 2's sign-in binds an email/phone, Auth.js's own JWT
+// session takes over as the stronger signal — see getSessionId() below —
+// but this cookie is still what makes the *anonymous* path work at all,
+// and it's still checked as a fallback (e.g. before any sign-in happens).
 export const SESSION_COOKIE = "anchor_session";
 
 export async function getSessionId(): Promise<string | undefined> {
+  const authSession = await auth();
+  if (authSession?.user?.id) return authSession.user.id;
+
   const store = await cookies();
   return store.get(SESSION_COOKIE)?.value;
 }
