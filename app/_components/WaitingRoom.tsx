@@ -68,21 +68,17 @@ export function WaitingRoom({
   }, []);
 
   return (
-    <div className="flex flex-col items-center gap-3 text-center">
-      <p className="text-lg">
-        You&apos;re <span className="font-semibold">#{state.position}</span> in line
-      </p>
-      <p className="text-sm text-neutral-500">
-        Estimated wait: {formatWait(state.waitSeconds)}
-      </p>
-      <p className="mt-4 max-w-sm text-xs text-neutral-400">
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-border bg-surface px-8 py-10 text-center">
+      <span className="font-display text-5xl">#{state.position}</span>
+      <p className="text-sm text-muted">in line — {formatWait(state.waitSeconds)}</p>
+      <p className="mt-4 max-w-sm text-xs text-muted">
         Someone will be with you as soon as they&apos;re free. You don&apos;t need to do
         anything else right now.
       </p>
 
       {!identified && (
-        <div className="mt-2 flex flex-col items-center gap-2 border-t border-neutral-100 pt-4">
-          <p className="text-xs text-neutral-400">
+        <div className="mt-2 flex flex-col items-center gap-2 border-t border-border pt-4">
+          <p className="text-xs text-muted">
             Want to be able to pick this back up later?
           </p>
           <BindIdentity />

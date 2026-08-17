@@ -38,6 +38,23 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 - [x] T2.6 — Write `docs/challenges/passwordless-auth.md` notes on what changed vs. a production version (real SMS, sliding-window limiter, orphaned anonymous QueueEntry on resume)
 - [x] T2.7 — Passkey registration + sign-in [FR-2.5] — promoted from stretch: zero-cost at any scale, and it's one of krisenchat's real three methods. Custom `@simplewebauthn/server`-backed Credentials provider (not Auth.js's built-in WebAuthn, which requires a full Adapter — same reasoning as T2.1/T2.3). Usernameless/discoverable-credential flow, verified live: well-formed options, expired-challenge rejection, and graceful failure in an environment with no platform authenticator. The actual Touch ID/security-key ceremony needs a real device — handed off, not faked; see `docs/challenges/passwordless-auth.md`.
 
+## Milestone 2.5 — Real landing page & rebrand pass
+
+Inserted out of sequence, before Milestone 3 — the app needed to actually
+*look* like a real product before going further, not just function like one.
+Design language pulled from an external reference (fundwise.fun: warm cream
+ground, chunky condensed display type, one punchy accent, pill-everything,
+sticker badges) and adapted into Anchor Chat's own palette/voice, not copied.
+
+- [x] T2.5.1 — Design tokens: cream/coffee/amber/sage palette (`app/globals.css`), Archivo Black display + Plus Jakarta Sans body via `next/font/google` (`app/layout.tsx`)
+- [x] T2.5.2 — Nav, Footer, CookieBanner components — footer carries Impressum/Datenschutz links + an explicit "practice project, not a real support service" disclaimer linking the public repo
+- [x] T2.5.3 — Hero, "if this is you" pain-point grid, how-it-works, trust section — meme-literate hook ("LIFE AIN'T LIVING RN.", the espresso/depresso sticker badge) that deliberately pivots into sincere, non-clinical copy once past the hook; trust built via honest fact-chips (anonymity, real counselors, free, open-source), not fabricated testimonials — see note below
+- [x] T2.5.4 — Impressum + Datenschutz pages — both explicitly labeled as a demo structure (no real registered entity, no invented address/registration number), matching the German-site convention seen in `research/krisenchat-recon.md` without pretending to be a real filing
+- [x] T2.5.5 — Restyle `StartChat`/`WaitingRoom`/`BindIdentity` onto the new tokens so the actual working flow doesn't look bolted onto the marketing page
+- [x] T2.5.6 — Verified live: full flow (hero → chat now → real queue position) end to end, both legal pages, zero console errors, desktop + narrow viewport
+
+**Why no testimonials:** fabricated user quotes/reviews for a mental-health-adjacent product — even clearly fictional ones — read as presenting invented experiences as genuine, which is the wrong kind of "trust" to fake. Trust here comes from process transparency (open-source, what's collected, who answers) instead.
+
 ## Milestone 3 — Counselor queue view [FR-4]
 
 - [ ] T3.1 — Seed one counselor account directly in the DB (no self-serve counselor signup)

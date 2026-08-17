@@ -25,13 +25,13 @@ export function StartChat() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-start gap-2">
       <button
         onClick={handleStart}
         disabled={pending}
-        className="rounded-full bg-teal-700 px-8 py-3 text-base font-medium text-white transition hover:bg-teal-800 disabled:opacity-60"
+        className="rounded-full bg-accent px-8 py-3 text-base font-semibold text-accent-ink transition hover:brightness-95 disabled:opacity-60"
       >
-        {pending ? "Starting…" : "Start chat"}
+        {pending ? "Starting…" : "Chat now — it's free"}
       </button>
       {error && (
         <p className="text-sm text-red-600">

@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #f3eee1;
+  --surface: #ffffff;
+  --ink: #201a12;
+  --muted: #6b6255;
+  --border: #e3dac5;
+  /* Energy accent — CTAs, hero highlights, the "hook" sections. */
+  --accent: #d98e2b;
+  --accent-ink: #201a12;
+  /* Calmer accent — trust/privacy sections. Same warmth, lower energy:
+     the page should feel like it exhales once it gets past the hook. */
+  --accent-2: #6f8f63;
+  --accent-2-tint: #e6ecdf;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #15110b;
+    --surface: #1f1911;
+    --ink: #f3eee1;
+    --muted: #a89a83;
+    --border: #332a1d;
+    --accent: #e8a33d;
+    --accent-ink: #15110b;
+    --accent-2: #8fad82;
+    --accent-2-tint: #21281d;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
 }

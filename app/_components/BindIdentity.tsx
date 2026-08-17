@@ -85,7 +85,7 @@ export function BindIdentity() {
 
   if (mode === "closed") {
     return (
-      <div className="flex flex-col items-center gap-2 text-xs text-neutral-500">
+      <div className="flex flex-col items-center gap-2 text-xs text-muted">
         <div className="flex gap-3">
           <button onClick={() => setMode("email")} className="underline">
             Email me a link
@@ -109,11 +109,11 @@ export function BindIdentity() {
   }
 
   if (mode === "email-sent") {
-    return <p className="text-xs text-neutral-500">Check your email for a sign-in link.</p>;
+    return <p className="text-xs text-muted">Check your email for a sign-in link.</p>;
   }
 
   if (mode === "done") {
-    return <p className="text-xs text-neutral-500">You&apos;re set — this chat will find you.</p>;
+    return <p className="text-xs text-muted">You&apos;re set — this chat will find you.</p>;
   }
 
   return (
@@ -125,12 +125,12 @@ export function BindIdentity() {
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-neutral-300 px-3 py-1.5 text-sm"
+          className="rounded border border-border px-3 py-1.5 text-sm"
         />
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-neutral-800 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+          className="rounded bg-ink px-3 py-1.5 text-xs font-medium text-bg disabled:opacity-60"
         >
           {pending ? "Sending…" : "Send link"}
         </button>
