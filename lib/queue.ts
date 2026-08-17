@@ -39,3 +39,9 @@ export async function getWaitEstimateSeconds(position: number): Promise<number> 
   const minutes = depthAhead / throughputPerMinute;
   return Math.round(minutes * 60);
 }
+
+// deleteMany, not delete: leaving is idempotent (double-click, already
+// claimed, or already left) rather than throwing on a missing row (FR-3.4).
+export async function leaveQueue(sessionId: string): Promise<void> {
+  await prisma.queueEntry.deleteMany({ where: { sessionId } });
+}

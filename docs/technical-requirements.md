@@ -39,8 +39,25 @@ security." Concretely:
   before constructing any prompt — see `docs/challenges/ai-triage.md`.
 - Anonymous by default: a visitor is usable end-to-end (minus session resume)
   without providing an email or phone number at all.
-- All demo/seed data is synthetic. No real names, no real phone numbers, no
-  real crisis content — write clearly fictional seed messages.
+- All **visitor/chat-side** demo/seed data is synthetic. No real names, no
+  real phone numbers, no real crisis content — write clearly fictional seed
+  messages. This is unaffected by the carve-out below.
+- **Narrow, explicit exception (Milestone 3.5):** the Listener
+  application/profile subsystem (FR-8, FR-9) collects real data from real
+  people — name, real email, an application message, and peer reviews
+  authored by real approved Listeners. This is a deliberate departure from
+  "no real user data, ever" for that subsystem only, made because the admin
+  (Menty B) is personally vetting real applicants. Consequences to hold to:
+  - Applicant/Listener data lives in its own tables, never joined to visitor
+    `Session`/`Message` data in a way that could conflate the two.
+  - Every applicant-facing surface (application form, public profile) states
+    plainly this is a portfolio/practice project, same disclaimer pattern as
+    the footer's "practice project, not a real support service" line.
+  - No real visitor crisis conversations happen on this deployment — the
+    "Listener" role exists to demonstrate the vetting/queue/chat mechanics,
+    not to actually broker real support. If that line ever gets blurry in
+    practice, stop and treat it as a new, separate decision — it is not
+    covered by this carve-out.
 - If this were a real service handling EU minors' data, it would be
   processing special-category data under GDPR Art. 9, which would mandate EU
   data residency for storage and processing. This demo doesn't handle real
@@ -56,8 +73,10 @@ security." Concretely:
   target for abuse otherwise) — a fixed-window limiter is enough for the
   demo; note in `docs/challenges/passwordless-auth.md` what a production
   version would need instead.
-- Counselor role is enforced server-side on every route handler that touches
-  the queue or another user's messages — never trust a client-sent role.
+- Listener role (and the separate `isAdmin` flag) is enforced server-side on
+  every route handler that touches the queue, another user's messages, or
+  admin-only actions (application review, removal) — never trust a
+  client-sent role.
 
 ### Reliability
 
@@ -73,11 +92,16 @@ Route handlers under `app/api/`:
 
 - `POST /api/chat/start` — creates an anonymous session + queue entry.
 - `POST /api/auth/*` — Auth.js-managed (magic link, OTP).
-- `GET /api/queue` — counselor-only, live queue snapshot (backed by realtime
+- `GET /api/queue` — Listener-only, live queue snapshot (backed by realtime
   subscription client-side, this is just the initial fetch).
-- `POST /api/queue/:id/claim` — counselor claims a chat.
+- `POST /api/queue/:id/claim` — Listener claims a chat.
 - `POST /api/chat/:id/messages` — send a message; triggers the AI
   classification pipeline server-side before broadcasting.
+- `POST /api/listener-applications` — public, creates a `LISTENER_APPLICATION`
+  row and emails the admin.
+- `POST /api/listener-applications/:id/approve` / `/reject` — admin-only.
+- `POST /api/listeners/:id/reviews` — Listener-only (author must be
+  `status=approved`), creates a `LISTENER_REVIEW` row.
 - Realtime channel per chat (`chat:{id}`) for message broadcast; a separate
   `queue` channel for queue-state updates.
 
@@ -100,6 +124,6 @@ itself.
 - Unit tests around the urgency-classification redaction logic specifically
   (this is the part most worth proving works, not just believing it does).
 - One end-to-end test covering the full MVP slice (start chat → sign in →
-  counselor claims → message round-trip) using Playwright.
+  Listener claims → message round-trip) using Playwright.
 - No requirement for exhaustive coverage elsewhere — this is a demo, not
   production software; spend testing effort where the PRD says the risk is.

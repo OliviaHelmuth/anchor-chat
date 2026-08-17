@@ -84,7 +84,7 @@ This mostly collides with constraint #1's connection caps directly:
 
 For a crisis-chat product specifically, "concurrent users" includes everyone
 sitting in the *waiting queue*, not just people in an active chat — so the
-real number is higher than it looks from the counselor side. A queue with a
+real number is higher than it looks from the Listener side. A queue with a
 visible wait time (FR-3.1) is exactly the kind of feature that can blow past
 a 200-connection free tier faster than you'd expect if it goes viral or
 spikes during a crisis event. That's an argument for designing the queue

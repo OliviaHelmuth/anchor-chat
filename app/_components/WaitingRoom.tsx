@@ -1,6 +1,7 @@
 "use client";
 
 import * as Ably from "ably";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { BindIdentity } from "./BindIdentity";
 
@@ -25,8 +26,23 @@ export function WaitingRoom({
   initial: Position;
   identified: boolean;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<Position>(initial);
+  const [leaving, setLeaving] = useState(false);
   const fetchingRef = useRef(false);
+
+  async function handleLeave() {
+    setLeaving(true);
+    try {
+      const res = await fetch("/api/chat/leave", { method: "POST" });
+      if (!res.ok) throw new Error("leave failed");
+      // Same pattern as StartChat: let the server component re-read state
+      // instead of guessing what to render client-side.
+      router.refresh();
+    } catch {
+      setLeaving(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +100,14 @@ export function WaitingRoom({
           <BindIdentity />
         </div>
       )}
+
+      <button
+        onClick={handleLeave}
+        disabled={leaving}
+        className="mt-2 text-xs text-muted underline underline-offset-2 transition hover:text-ink disabled:opacity-60"
+      >
+        {leaving ? "Leaving…" : "Leave the queue"}
+      </button>
     </div>
   );
 }
