@@ -46,7 +46,7 @@ function VerifyContent() {
         <p className="text-sm text-neutral-500">Signing you in…</p>
       ) : (
         <>
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-error-text">
             That link didn&apos;t work — it may have expired or already been used.
           </p>
           <Link href="/" className="text-sm underline">

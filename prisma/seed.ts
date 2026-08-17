@@ -22,7 +22,7 @@ async function main() {
   // entry to demo without waiting on a real applicant to get approved.
   const displayName = "Menty B";
   const bio =
-    "Founder and admin of Anchor Chat. Not a therapist or counselor — just the person who reads every application and keeps this place running.";
+    "Founder and admin of overshare.io. Not a therapist or counselor — just the person who reads every application and keeps this place running.";
 
   const listener = await prisma.listener.upsert({
     where: { email },

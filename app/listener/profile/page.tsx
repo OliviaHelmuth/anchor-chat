@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getListener } from "@/lib/listener-auth";
 import { prisma } from "@/lib/prisma";
 import { ProfileEditForm } from "@/app/_components/ProfileEditForm";
+import { AdminNav } from "@/app/_components/AdminNav";
+import { ProfilePageHeading } from "@/app/_components/ProfilePageHeading";
 
 export default async function ListenerProfileEditPage() {
   const listener = await getListener();
@@ -12,19 +13,12 @@ export default async function ListenerProfileEditPage() {
   if (!record) redirect("/listener/login");
 
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-6 py-16">
-      <div>
-        <h1 className="font-display text-3xl">Your public profile</h1>
-        <p className="mt-2 text-sm text-muted">
-          Shown on{" "}
-          <Link href={`/listeners/${record.id}`} className="underline">
-            your public page
-          </Link>
-          . No real legal name required — pick whatever you&apos;re
-          comfortable showing.
-        </p>
-      </div>
-      <ProfileEditForm initialDisplayName={record.displayName ?? ""} initialBio={record.bio ?? ""} />
-    </main>
+    <>
+      <AdminNav isAdmin={listener.isAdmin} />
+      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-4 py-10 sm:px-6 sm:py-16">
+        <ProfilePageHeading listenerId={record.id} />
+        <ProfileEditForm initialDisplayName={record.displayName ?? ""} initialBio={record.bio ?? ""} />
+      </main>
+    </>
   );
 }

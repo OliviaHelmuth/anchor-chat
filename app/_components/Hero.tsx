@@ -1,71 +1,77 @@
-const TICKER = [
+"use client";
+
+import { useI18n } from "@/lib/i18n";
+
+const TICKER_DE = [
+  "Zocken bis 4 Uhr morgens",
+  "ADHS-Brain macht Overtime",
+  "schon wieder hyperfokussiert",
+  "3-Uhr-Gedankenspirale",
+  "exekutive Dysfunktion, again",
+  "allen geht's gut, nur dir nicht",
+  "3 Stunden gescrollt",
+  "Meltdown lädt…",
+];
+
+const TICKER_EN = [
   "gaming till 4am",
-  "family group chat chaos",
-  "no situationship, no dating",
-  "neighbor beef",
-  "3am spiral",
-  "just... tired",
+  "ADHD brain won't shut up",
+  "ok but hyperfixating rn",
+  "3am spiral, again",
+  "executive dysfunction era",
   "everyone's fine except you",
   "doom-scrolling for 3 hours",
+  "meltdown loading…",
 ];
 
 export function Hero({ children }: { children: React.ReactNode }) {
+  const { t, locale } = useI18n();
+  const ticker = locale === "de" ? TICKER_DE : TICKER_EN;
+
   return (
-    <section className="relative overflow-hidden px-6 pt-16 pb-10 sm:pt-24">
-      <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
-        <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted">
-            ✦ No account. No diagnosis. No charge.
+    <section className="relative px-4 pt-4 sm:px-6 sm:pt-10">
+      <div className="nb relative mx-auto max-w-6xl bg-accent-2 px-5 py-12 text-accent-2-ink sm:px-12 sm:py-20">
+        <div className="relative max-w-xl">
+          <span className="nb-sm inline-flex items-center gap-1.5 bg-surface px-3 py-1 text-xs font-bold text-ink">
+            {t.hero.badge}
           </span>
 
-          <h1 className="mt-6 font-display text-[15vw] leading-[0.92] tracking-tight sm:text-7xl lg:text-8xl">
-            LIFE AIN&apos;T
+          <h1 className="mt-5 font-display text-4xl leading-[0.95] tracking-tight sm:mt-6 sm:text-6xl lg:text-7xl">
+            {t.hero.headline1}
             <br />
-            <span className="bg-accent px-2 text-ink">LIVING RN.</span>
+            <span className="bg-accent px-2 text-accent-ink">{t.hero.headline2}</span>
           </h1>
 
-          <p className="mt-6 max-w-md text-lg text-muted">
-            Family&apos;s stressing you out. Neighbor&apos;s stressing you out.
-            You&apos;re stressing you out. Gaming too much, nobody to date,
-            just <em className="not-italic text-ink">everything</em> — you
-            don&apos;t need the right words. Just start typing.
-          </p>
+          <p className="mt-5 max-w-md text-base text-white/85 sm:mt-6 sm:text-lg">{t.hero.body}</p>
 
-          <div id="chat" className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+          <div id="chat" className="mt-7 sm:mt-8">
             {children}
-            <span
-              aria-disabled
-              className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-medium text-muted"
-            >
-              Chat with our AI — coming soon
-            </span>
           </div>
 
-          <p className="mt-4 text-xs text-muted">
-            🔒 Fully anonymous &nbsp;·&nbsp; 🕐 Real people, usually within
-            minutes &nbsp;·&nbsp; 🆓 Always free
-          </p>
-        </div>
-
-        <div className="flex justify-center lg:justify-end">
-          <div className="flex h-40 w-40 -rotate-6 flex-col items-center justify-center rounded-full bg-ink text-center text-bg sm:h-48 sm:w-48">
-            <span className="text-2xl">☕</span>
-            <span className="mt-1 font-display text-sm leading-tight">
-              MORE ESPRESSO
-            </span>
-            <span className="font-display text-sm leading-tight text-accent">
-              LESS DEPRESSO
-            </span>
-          </div>
+          <p className="mt-5 text-xs text-white/70 sm:mt-6">{t.hero.trustLine}</p>
         </div>
       </div>
 
-      <div className="mt-14 overflow-hidden border-y border-border py-3">
+      {/* Hidden easter egg — the original meme sticker, tucked off the
+          bottom-left corner instead of front-and-center. Barely there until
+          you look, same "more espresso, less depresso" line as before.
+          Hidden below sm: on a narrow viewport it has nowhere to sit
+          without overlapping the ticker strip right beneath it. */}
+      <div
+        title="more espresso, less depresso"
+        className="nb nb-press absolute -bottom-4 left-10 z-10 hidden h-16 w-16 -rotate-12 cursor-default flex-col items-center justify-center bg-accent-3 text-center text-[9px] font-bold leading-none text-accent-3-ink opacity-70 transition-opacity hover:opacity-100 sm:flex"
+      >
+        <span className="text-base">☕</span>
+        <span className="mt-0.5">MORE</span>
+        <span>ESPRESSO</span>
+      </div>
+
+      <div className="nb-sm mx-auto mt-8 max-w-6xl overflow-hidden bg-surface py-3 sm:mt-10">
         <div className="ticker flex w-max gap-3 motion-reduce:animate-none">
-          {[...TICKER, ...TICKER].map((item, i) => (
+          {[...ticker, ...ticker].map((item, i) => (
             <span
               key={i}
-              className="shrink-0 rounded-full bg-surface px-4 py-1.5 text-sm text-muted"
+              className="nb-sm shrink-0 bg-bg px-4 py-1.5 text-sm font-semibold text-ink"
             >
               {item}
             </span>

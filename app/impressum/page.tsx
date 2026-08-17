@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
 
-export const metadata: Metadata = { title: "Impressum — Anchor Chat" };
+export const metadata: Metadata = { title: "Impressum — overshare.io" };
 
 export default function ImpressumPage() {
   return (
@@ -13,7 +13,7 @@ export default function ImpressumPage() {
           <h1 className="font-display text-3xl">Impressum</h1>
 
           <div className="mt-6 rounded-2xl bg-accent-2-tint p-5 text-sm text-ink">
-            Anchor Chat is a portfolio/practice project, not a real company —
+            overshare.io is a portfolio/practice project, not a real company —
             there is no registered legal entity behind it. German sites are
             legally required to publish an Impressum (§5 TMG); this page
             shows that structure honestly, with each field marked as N/A
@@ -25,7 +25,7 @@ export default function ImpressumPage() {
             <div>
               <dt className="font-semibold">Anbieter (provider)</dt>
               <dd className="mt-1 text-muted">
-                Anchor Chat — a demo project. No registered entity exists.
+                overshare.io — a demo project. No registered entity exists.
               </dd>
             </div>
             <div>

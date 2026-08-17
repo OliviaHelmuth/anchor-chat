@@ -9,7 +9,7 @@ export default function ApplyPage() {
           Listeners are volunteers, not therapists or counselors — no
           clinical license required or implied. Every application is read
           and decided by a real person (Menty B), not an algorithm.
-          Anchor Chat is a practice/portfolio project, so this vetting exists
+          overshare.io is a practice/portfolio project, so this vetting exists
           to demonstrate the flow, not to broker real crisis support.
         </p>
       </div>

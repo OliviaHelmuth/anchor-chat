@@ -1,9 +1,9 @@
 ---
 name: anchor-chat-context
-description: Load Anchor Chat's product, architecture, and current task context in one shot. Use at the start of a session, or whenever asked to "get up to speed" on this project, before proposing or implementing a feature.
+description: Load overshare.io's product, architecture, and current task context in one shot. Use at the start of a session, or whenever asked to "get up to speed" on this project, before proposing or implementing a feature.
 ---
 
-# Anchor Chat context loader
+# overshare.io context loader
 
 Read these four files, in this order, before doing anything else in this
 project:

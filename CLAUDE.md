@@ -1,4 +1,4 @@
-# Anchor Chat — project memory
+# overshare.io — project memory
 
 This repo is interview prep: an original, differently-branded crisis-support
 chat demo built to practice for a krisenchat.de Full Stack Engineer technical

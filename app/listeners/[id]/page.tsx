@@ -31,8 +31,8 @@ export default async function ListenerProfilePage({
         <h1 className="font-display text-3xl">{listener.displayName ?? "This Listener hasn't set up their profile yet"}</h1>
         {listener.bio && <p className="mt-3 text-sm text-muted">{listener.bio}</p>}
         <p className="mt-4 text-xs text-muted">
-          Volunteer, vetted by Anchor Chat&apos;s admin — not a therapist or
-          counselor, and no clinical credential is implied. Anchor Chat is a
+          Volunteer, vetted by overshare.io&apos;s admin — not a therapist or
+          counselor, and no clinical credential is implied. overshare.io is a
           practice/portfolio project.
         </p>
       </div>

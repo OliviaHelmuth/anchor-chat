@@ -89,9 +89,9 @@ theory:**
 - **No real SMS or email required to fully test this.** OTP always logs to
   the server console (no free ongoing SMS tier exists — see
   `docs/hosting-and-scaling.md`). Magic link does the same
-  (`lib/email.ts`) *unless* `RESEND_API_KEY` is set, in which case it sends
-  for real — same code path either way, so wiring up Resend later is a
-  config change, not a rewrite.
+  (`lib/email.ts`) *unless* `BREVO_API_KEY`/`BREVO_SENDER_EMAIL` are set, in
+  which case it sends for real — same code path either way, so wiring up a
+  real provider is a config change, not a rewrite.
 
 **Passkeys — the part that needed real engineering, not just wiring:**
 

@@ -1,4 +1,4 @@
-# Product requirements — Anchor Chat
+# Product requirements — overshare.io
 
 Granular, testable requirements derived from `docs/PRD.md`. Each has an ID so
 `tasks/TASKS.md` can reference it directly. "Must" = MVP, "Should" = do if
@@ -24,11 +24,20 @@ time allows, "Later" = explicitly deferred per the PRD.
 
 ## FR-3 — Queue and wait estimate
 
+**Changed, direct request (post-Milestone 4.97):** position/ETA are no longer
+shown to the visitor in the chat widget — with one Listener seeded, "you're
+#1, ~5 min" reads as noise, not signal. Position and wait-time math
+(`lib/queue.ts`) still runs and still backs the Listener-facing "waiting
+since" display (`AdminDashboard`); FR-3.1/FR-3.2 are downgraded from Must
+(visitor-visible) to **internal-only, Listener side**. The visitor instead
+sees a generic "sent to Menty B" confirmation once their first message
+lands — see FR-5.5's update.
+
 | ID | Requirement | Priority | Acceptance criteria |
 |---|---|---|---|
-| FR-3.1 | Visitor sees their queue position after starting a chat | Must | Position updates without a manual page refresh |
-| FR-3.2 | Visitor sees an estimated wait time | Must | Estimate is computed from current queue depth ÷ available-Listener throughput, not a hardcoded string |
-| FR-3.3 | Estimate updates if queue position changes | Should | Live update on Listener pickup or new arrivals ahead in queue |
+| FR-3.1 | Queue position is computed per session | Must (internal) | `getQueuePosition` backs the Listener queue view; no longer rendered in the visitor widget |
+| FR-3.2 | Wait time is estimated from throughput, not hardcoded | Must (internal) | Estimate is computed from current queue depth ÷ available-Listener throughput; not currently surfaced anywhere in the UI, kept for a possible future Listener-facing estimate |
+| FR-3.3 | Estimate updates if queue position changes | Should | Live update on Listener pickup or new arrivals ahead in queue (still true for the Listener-facing "waiting since" display) |
 | FR-3.4 | Visitor can leave the queue and return to the site | Must | Leaving removes the `QueueEntry`, closes the chat widget, no dangling "waiting" row left behind |
 
 ## FR-4 — Listener queue view
@@ -57,8 +66,8 @@ sitting right next to it.
 | FR-5.2 | Message order is preserved even under concurrent sends | Must | Server-assigned sequence number or timestamp, not client-trusted order |
 | FR-5.3 | Reconnect after a dropped connection resumes without message loss | Should | Client re-fetches any messages sent while disconnected |
 | FR-5.4 | Typing indicator | Later | Nice-to-have, not required for the learning goal |
-| FR-5.5 | Chat renders as a bottom-right widget (open/collapse, not a full-page takeover); visitor may set an optional display name, defaulting to "Anonymous" if left blank | Must | Widget persists across the landing page; name (or "Anonymous") is what a Listener/other waiting visitors see, never a real identity field |
-| FR-5.6 | While in an active or waiting chat, visitor can see who else is currently in the queue, by display name or "Anonymous" | Should | Roster list updates live off the same `queue` channel as FR-3.3, read-only, no visitor identity exposed beyond the display name they themselves chose |
+| FR-5.5 | Chat renders as a bottom-right widget with a round trigger that's always visible (open/collapse, not a full-page takeover), styled consistently with the Listener/admin chat surface; a first-time visitor sees a welcome message and is asked for a display name (or to stay anonymous) before their first message, then can send that message immediately — before a Listener has claimed the chat — and sees a "sent to Menty B" confirmation | Must | Widget persists across the landing page; name (or "Anonymous") is what a Listener sees, never a real identity field; `POST /api/chat/:id/messages` accepts a visitor message pre-claim, not only post-claim |
+| FR-5.6 | ~~While in an active or waiting chat, visitor can see who else is currently in the queue~~ | **Removed from the widget, direct request (post-Milestone 4.97)** | The roster panel was pulled from `ChatWidget` — "people don't need to see that." `GET /api/chat/roster` and `getWaitingQueueEntries` (`lib/queue.ts`) are untouched and still work; a public "who's waiting" section elsewhere on the landing page (not inside the chat widget) was floated as a maybe, not committed — revisit as a new FR if it gets scoped |
 
 ## FR-6 — AI-assisted triage
 
@@ -88,7 +97,7 @@ and anonymous as before.
 | ID | Requirement | Priority | Acceptance criteria |
 |---|---|---|---|
 | FR-8.1 | A public form lets someone apply to become a Listener (name, email, why they want to join) | Must | Form makes no claim of clinical credentialing anywhere in its copy |
-| FR-8.2 | Submitting an application notifies the admin account by email | Must | Resend delivers a notification to the admin's real email on submit |
+| FR-8.2 | Submitting an application notifies the admin account by email | Must | Brevo delivers a notification to the admin's real email on submit |
 | FR-8.3 | Admin (Menty B) can review, approve, or reject a pending application | Must | Approve/reject actions are admin-only (FR-4.4), state change is visible in an admin view |
 | FR-8.4 | Rejected/pending applicants have no public profile or platform access | Must | Only `approved` status grants a Listener login + profile |
 
@@ -99,3 +108,11 @@ and anonymous as before.
 | FR-9.1 | Each approved Listener has a public profile (display name, short bio) | Must | Profile is reachable without authentication, no real legal name required beyond what the Listener chooses to show |
 | FR-9.2 | Other approved Listeners can leave a peer review on a Listener's profile | Must | Only accounts with `role=listener, status=approved` can author a review — never an anonymous visitor. Keeps faith with the no-fabricated-testimonial reasoning in Milestone 2.5 of `tasks/TASKS.md`: these are real reviews from real vetted peers, not marketing copy |
 | FR-9.3 | Admin can remove a review or a Listener's listing | Must | Same admin-only enforcement as FR-4.4/FR-8.3 |
+
+## FR-10 — Landing page presentation
+
+| ID | Requirement | Priority | Acceptance criteria |
+|---|---|---|---|
+| FR-10.1 | Landing page (nav, hero, how-it's-used, trust, FAQ, footer) is available in German and English, user-toggleable | Must | A visible toggle switches all landing copy live, no reload required; choice persists across visits (localStorage) |
+| FR-10.2 | Visitor can explicitly force light or dark theme, independent of OS setting | Must | Toggle in nav overrides `prefers-color-scheme`; choice persists across visits |
+| FR-10.3 | Landing page has a dedicated FAQ section answering: who it's for, when to use it, how long it takes, who's on the other end | Must | Four question/answer pairs, expandable, reachable from nav/footer anchor link |

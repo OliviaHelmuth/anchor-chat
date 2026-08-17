@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getListener } from "@/lib/listener-auth";
 import { prisma } from "@/lib/prisma";
 import { AdminListenersPanel } from "@/app/_components/AdminListenersPanel";
+import { AdminNav } from "@/app/_components/AdminNav";
+import { AdminPageHeading } from "@/app/_components/AdminPageHeading";
 
 export default async function AdminListenersPage() {
   const viewer = await getListener();
@@ -31,12 +33,12 @@ export default async function AdminListenersPage() {
   }));
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
-      <div>
-        <h1 className="font-display text-3xl">Listeners</h1>
-        <p className="text-sm text-muted">Admin-only listing management (FR-9.3).</p>
-      </div>
-      <AdminListenersPanel initial={rows} />
-    </main>
+    <>
+      <AdminNav isAdmin={viewer.isAdmin} />
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-10 sm:px-6 sm:py-16">
+        <AdminPageHeading page="listeners" />
+        <AdminListenersPanel initial={rows} />
+      </main>
+    </>
   );
 }

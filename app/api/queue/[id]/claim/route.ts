@@ -23,16 +23,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const entry = await prisma.queueEntry.findUnique({ where: { id } });
-    if (entry) {
-      await prisma.session.update({
-        where: { id: entry.sessionId },
-        data: { listenerId: listener.id },
-      });
+    if (!entry) {
+      return NextResponse.json({ error: "Could not claim this chat" }, { status: 500 });
     }
+    await prisma.session.update({
+      where: { id: entry.sessionId },
+      data: { listenerId: listener.id },
+    });
 
     await publishQueueUpdate();
 
-    return NextResponse.json({ ok: true });
+    // sessionId, not the QueueEntry id: that's what the chat lives under
+    // (chat:{sessionId}) — AdminDashboard opens a panel for it directly
+    // instead of a separate lookup round-trip.
+    return NextResponse.json({ ok: true, sessionId: entry.sessionId });
   } catch (error) {
     Sentry.captureException(error);
     return NextResponse.json({ error: "Could not claim this chat" }, { status: 500 });

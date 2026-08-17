@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
-      userName: session?.email ?? session?.phone ?? "Anchor Chat visitor",
+      userName: session?.email ?? session?.phone ?? "overshare.io visitor",
       userID: Buffer.from(sessionId, "utf8"),
       attestationType: "none",
       excludeCredentials: existing.map((c) => ({ id: c.credentialId })),

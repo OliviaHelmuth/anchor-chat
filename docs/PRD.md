@@ -1,10 +1,10 @@
-# PRD — Anchor Chat
+# PRD — overshare.io
 
 **Status:** draft · **Owner:** you · **Last updated:** 2026-08-17
 
 ## Summary
 
-Anchor Chat is a small, originally-branded demo of a text-based crisis-support
+overshare.io is a small, originally-branded demo of a text-based crisis-support
 chat platform: someone in distress starts an anonymous chat, sees a live wait
 estimate, and gets connected to a volunteer "Listener" (name confirmed safe
 in `research/legal-terminology.md`). It exists to practice

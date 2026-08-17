@@ -9,7 +9,7 @@ Add entries here as we actually provision each service.
 
 ### 1. Postgres (once the DB is provisioned)
 
-For querying/inspecting the Anchor Chat schema directly from a session
+For querying/inspecting the overshare.io schema directly from a session
 instead of round-tripping through the app.
 
 ```json

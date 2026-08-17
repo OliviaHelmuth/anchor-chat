@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
 
-export const metadata: Metadata = { title: "Datenschutz / Privacy — Anchor Chat" };
+export const metadata: Metadata = { title: "Datenschutz / Privacy — overshare.io" };
 
 export default function DatenschutzPage() {
   return (
@@ -37,7 +37,7 @@ export default function DatenschutzPage() {
             <ul className="list-disc space-y-1 pl-5 text-muted">
               <li>Database: Neon Postgres, EU (Frankfurt)</li>
               <li>Realtime messaging: Ably</li>
-              <li>Magic-link email: Resend, if configured</li>
+              <li>Magic-link email: Brevo, if configured</li>
               <li>Error monitoring: Sentry</li>
               <li>Hosting: Vercel</li>
             </ul>

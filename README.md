@@ -6,7 +6,7 @@ here:
 1. **Recon** (`research/`) — what we could verify about krisenchat.de's real
    stack from the outside (headers, network requests, JS bundles) plus what
    the job posting states directly.
-2. **Anchor Chat** — a small, originally-branded crisis-support chat demo we
+2. **overshare.io** — a small, originally-branded crisis-support chat demo we
    build from scratch to practice the same architecture: passwordless auth,
    a live queue, realtime messaging, and one privacy-conscious AI feature.
    Not a krisenchat clone — see `CLAUDE.md` for why that distinction matters.

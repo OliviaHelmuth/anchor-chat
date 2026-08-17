@@ -39,9 +39,10 @@ export function ReviewForm({ listenerId }: { listenerId: string }) {
         rows={3}
         maxLength={2000}
         placeholder="Leave a peer review…"
+        aria-label="Leave a peer review"
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        className="rounded border border-border px-3 py-2 text-sm"
+        className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted"
       />
       <button
         type="submit"
@@ -50,7 +51,7 @@ export function ReviewForm({ listenerId }: { listenerId: string }) {
       >
         {pending ? "Posting…" : "Post review"}
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-error-text">{error}</p>}
     </form>
   );
 }

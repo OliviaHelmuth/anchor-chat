@@ -1,4 +1,4 @@
-# Technical requirements — Anchor Chat
+# Technical requirements — overshare.io
 
 ## Stack (fixed — matches the job posting's stated stack)
 
@@ -17,6 +17,27 @@
 Do not introduce a second framework, a second database, or a second styling
 system without updating this file first — the point of the exercise is depth
 in one stack, not breadth.
+
+**i18n (DE/EN toggle, FR-10.1):** a custom React Context + dictionary lookup
+(`lib/i18n.tsx`), not `next-intl`/locale-prefixed routing. Originally scoped
+to just the public landing page (nav, hero, how-it's-used, trust, FAQ,
+footer, cookie banner); extended to the Listener/admin panel (`AdminNav`,
+the 4 `/listener` + `/admin` pages, `AdminDashboard`, `ApplicationsReview`,
+`AdminListenersPanel`, `ProfileEditForm`, `ListenerChat`) on direct request.
+The visitor-facing `ChatWidget`/`BindIdentity` (landing page's own chat
+widget) are still English-only — not part of either request. Reasoning for
+Context over locale-prefixed routing still holds: `app/[locale]/...` would
+touch every route including auth callbacks and Ably token routes; a Context
+provider is zero new dependencies and confined to components that actually
+need it.
+
+**Theme toggle (FR-10.2):** `data-theme="light"|"dark"` attribute on
+`<html>`, set via an inline blocking script in `app/layout.tsx` (avoids a
+flash of the wrong theme) and toggled client-side into `localStorage`. CSS
+tokens in `app/globals.css` define light as the bare `:root` default, dark
+under both `@media (prefers-color-scheme: dark)` (guarded to not fire when
+`data-theme="light"` is explicitly set) and `:root[data-theme="dark"]` (so
+the explicit toggle wins over OS preference in both directions).
 
 ## Non-functional requirements
 
@@ -113,7 +134,7 @@ itself.
 
 | Integration | Free tier used | Constraint to design around |
 |---|---|---|
-| Email (magic link) | Resend | 100/day, 3,000/month — plenty for a demo, note the ceiling |
+| Email (magic link) | Brevo | 300/day — plenty for a demo; sender address must be verified in Brevo's dashboard first |
 | SMS (OTP) | Skip real SMS; log OTP to server console in dev | No free ongoing SMS tier exists — document this trade-off rather than pretending otherwise |
 | Realtime | Ably | 200 concurrent connections, 6M msgs/month — see hosting doc for what happens past that |
 | AI | Groq or Gemini free tier, or local Ollama | See hosting doc for the trade-offs between them |

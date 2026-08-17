@@ -53,7 +53,7 @@ export function ApplyForm() {
           maxLength={200}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded border border-border px-3 py-1.5 text-sm"
+          className="rounded border border-border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-muted"
         />
       </div>
 
@@ -67,7 +67,7 @@ export function ApplyForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-border px-3 py-1.5 text-sm"
+          className="rounded border border-border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-muted"
         />
       </div>
 
@@ -82,7 +82,7 @@ export function ApplyForm() {
           maxLength={5000}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="rounded border border-border px-3 py-2 text-sm"
+          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted"
         />
       </div>
 
@@ -94,7 +94,7 @@ export function ApplyForm() {
         {pending ? "Sending…" : "Submit application"}
       </button>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-error-text">{error}</p>}
     </form>
   );
 }

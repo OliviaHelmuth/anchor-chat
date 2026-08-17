@@ -1,32 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f3eee1;
+  --bg: #f6f4fb;
   --surface: #ffffff;
-  --ink: #201a12;
-  --muted: #6b6255;
-  --border: #e3dac5;
+  --ink: #1c1533;
+  --muted: #6a6285;
+  --border: #e4defa;
   /* Energy accent — CTAs, hero highlights, the "hook" sections. */
-  --accent: #d98e2b;
-  --accent-ink: #201a12;
-  /* Calmer accent — trust/privacy sections. Same warmth, lower energy:
-     the page should feel like it exhales once it gets past the hook. */
-  --accent-2: #6f8f63;
-  --accent-2-tint: #e6ecdf;
+  --accent: #0fe0be;
+  --accent-ink: #06251f;
+  /* Calmer accent — trust/privacy/hero-block sections. */
+  --accent-2: #7c5cf0;
+  --accent-2-tint: #efe9fe;
+  --accent-2-ink: #ffffff;
+  /* accent-2 as small text (eyebrows, wordmark) needs to be a touch darker
+     than the block/button color to clear 4.5:1 on a light background — the
+     raw --accent-2 measures 4.14:1 there, just under AA. */
+  --accent-2-text: #6d51d3;
+  /* Pop accent — stickers, badges, chaos. Never a large surface. */
+  --accent-3: #e8ff4e;
+  --accent-3-ink: #1c1533;
+  /* Status text (e.g. "APPROVED") — Tailwind's emerald-600 measured 3.77:1
+     on a white card, under AA; this pair is tuned per-theme instead. */
+  --success-text: #00864b;
+  /* Form error text — Tailwind's red-600 is fine at 4.83:1 in light mode,
+     but drops under AA on the dark-mode surface color; lightened for dark. */
+  --error-text: #dc2626;
+
+  /* Neo-brutalist system: thick lines, hard offset shadows, no blur. */
+  --nb-border: 3px;
+  --nb-radius: 1.25rem;
+  --nb-offset: 6px;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15110b;
-    --surface: #1f1911;
-    --ink: #f3eee1;
-    --muted: #a89a83;
-    --border: #332a1d;
-    --accent: #e8a33d;
-    --accent-ink: #15110b;
-    --accent-2: #8fad82;
-    --accent-2-tint: #21281d;
+  :root:not([data-theme="light"]) {
+    --bg: #120f20;
+    --surface: #1c1733;
+    --ink: #f2eefc;
+    --muted: #b0a5d6;
+    --border: #322a52;
+    --accent: #2ee3c4;
+    --accent-ink: #06251f;
+    --accent-2: #a48cff;
+    --accent-2-tint: #251d47;
+    --accent-2-ink: #150c33;
+    --accent-2-text: #a48cff;
+    --accent-3: #f2ff6b;
+    --accent-3-ink: #1c1533;
+    --success-text: #3cb496;
+    --error-text: #e94e4e;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #120f20;
+  --surface: #1c1733;
+  --ink: #f2eefc;
+  --muted: #b0a5d6;
+  --border: #322a52;
+  --accent: #2ee3c4;
+  --accent-ink: #06251f;
+  --accent-2: #a48cff;
+  --accent-2-tint: #251d47;
+  --accent-2-ink: #150c33;
+  --accent-2-text: #a48cff;
+  --accent-3: #f2ff6b;
+  --accent-3-ink: #1c1533;
+  --success-text: #3cb496;
+  --error-text: #e94e4e;
 }
 
 @theme inline {
@@ -36,12 +78,99 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
   --color-accent-2: var(--accent-2);
+  --color-accent-2-tint: var(--accent-2-tint);
+  --color-accent-2-ink: var(--accent-2-ink);
+  --color-accent-2-text: var(--accent-2-text);
+  --color-accent-3: var(--accent-3);
+  --color-accent-3-ink: var(--accent-3-ink);
+  --color-success-text: var(--success-text);
+  --color-error-text: var(--error-text);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
+  /* Chat widget motion — entrance keyframe for a bubble that mounts fresh
+     each time (message pop-in); the widget's own open/close uses a plain
+     CSS transition instead (see ChatWidget.tsx) since that toggles an
+     already-mounted element and needs both directions to animate. */
+  --animate-message-in: message-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-typing-dot: typing-dot 1.1s ease-in-out infinite;
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Neo-brutalist primitives — thick border + hard offset shadow, no blur.
+   Shared classes instead of repeating long arbitrary-value strings so every
+   block/button in the app uses the exact same line weight and offset. */
+
+.nb {
+  border: var(--nb-border) solid var(--ink);
+  border-radius: var(--nb-radius);
+  box-shadow: var(--nb-offset) var(--nb-offset) 0 0 var(--ink);
+}
+
+.nb-sm {
+  border: 2px solid var(--ink);
+  border-radius: 0.75rem;
+  box-shadow: 4px 4px 0 0 var(--ink);
+}
+
+.nb-pill {
+  border: var(--nb-border) solid var(--ink);
+  border-radius: 999px;
+  box-shadow: var(--nb-offset) var(--nb-offset) 0 0 var(--ink);
+}
+
+/* Press-down interaction: the classic neo-brutalist button feel — the
+   element travels onto its own shadow and the shadow vanishes, so it reads
+   as physically pressed rather than just darkened. */
+.nb-press {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.nb-press:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: calc(var(--nb-offset) + 2px) calc(var(--nb-offset) + 2px) 0 0 var(--ink);
+}
+.nb-press:active {
+  transform: translate(var(--nb-offset), var(--nb-offset));
+  box-shadow: 0 0 0 0 var(--ink);
+}
+.nb-press-sm {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.nb-press-sm:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 0 var(--ink);
+}
+.nb-press-sm:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 0 var(--ink);
 }

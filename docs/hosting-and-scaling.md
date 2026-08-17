@@ -1,4 +1,4 @@
-# Hosting & scaling — Anchor Chat
+# Hosting & scaling — overshare.io
 
 Two jobs in this doc: (1) what we're actually using today, entirely free, and
 (2) a decision framework for when and why you'd move off each free choice —
@@ -13,7 +13,7 @@ what breaks first and what you'd reach for instead."
 | Database | **Neon** (Postgres) | 0.5GB storage, autosuspends when idle | TypeScript/Prisma-native, has an EU (Frankfurt) region on the free tier |
 | Realtime | **Ably** | 6M messages/mo, 200 concurrent connections | Highest free connection cap of the managed options; see below for why self-hosting is the alternative, not Pusher |
 | AI inference | **Groq** (Llama models) or **Google Gemini** free tier | Groq: generous free rate limits, very fast; Gemini: free quota, easy key | Both genuinely free, no credit card trial trap; pick Groq if latency matters more, Gemini if you want a larger/more capable free model |
-| Email (magic link) | **Resend** | 100/day, 3,000/mo | Clean Auth.js integration, generous enough for a demo |
+| Email (magic link) | **Brevo** | 300/day | REST API, no SDK dependency; requires verifying a sender address (no shared sandbox sender like Resend's) |
 | SMS (OTP) | *(none — see below)* | — | No ongoing free SMS tier exists anywhere; log OTP codes to the server console in dev instead of pretending there's a free option |
 | Error tracking | **Sentry** | 5k errors/mo | Matches krisenchat's real stack |
 | Repo + CI | **GitHub** + **GitHub Actions** | Unlimited public repos, 2,000 CI minutes/mo private | Standard |

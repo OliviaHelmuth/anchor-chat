@@ -103,7 +103,7 @@ export function BindIdentity() {
             ongoing SMS tier exists to actually deliver a code to a real
             phone. See docs/hosting-and-scaling.md and
             docs/challenges/passwordless-auth.md. */}
-        {error && <p className="text-red-600">{error}</p>}
+        {error && <p className="text-error-text">{error}</p>}
       </div>
     );
   }
@@ -123,9 +123,10 @@ export function BindIdentity() {
           type="email"
           required
           placeholder="you@example.com"
+          aria-label="Email address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-border px-3 py-1.5 text-sm"
+          className="rounded border border-border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-muted"
         />
         <button
           type="submit"
@@ -136,7 +137,7 @@ export function BindIdentity() {
         </button>
       </form>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-error-text">{error}</p>}
     </div>
   );
 }

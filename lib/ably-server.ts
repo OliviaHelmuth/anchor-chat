@@ -24,3 +24,21 @@ if (process.env.NODE_ENV !== "production") {
 export async function publishQueueUpdate() {
   await ablyRest.channels.get("queue").publish("update", {});
 }
+
+// Unlike the queue channel, chat:{id} payloads carry real message content —
+// that's expected (it's the whole point of the channel), but it's exactly
+// why /api/ably/token scopes subscribe access to the two participants of
+// that specific chat, never a wildcard. Publishing stays server-side only
+// (no client publish capability is ever granted) so this is the one place a
+// message reaches Ably at all.
+export type ChatMessagePayload = {
+  id: string;
+  sender: "VISITOR" | "LISTENER";
+  body: string;
+  sequence: number;
+  createdAt: string;
+};
+
+export async function publishChatMessage(sessionId: string, message: ChatMessagePayload) {
+  await ablyRest.channels.get(`chat:${sessionId}`).publish("message", message);
+}

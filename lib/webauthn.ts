@@ -12,7 +12,7 @@ export function getRpConfig(request: Request) {
   const url = new URL(request.url);
   return {
     rpID: url.hostname,
-    rpName: "Anchor Chat",
+    rpName: "overshare.io",
     origin: url.origin,
   };
 }

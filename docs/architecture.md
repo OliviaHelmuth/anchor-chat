@@ -1,4 +1,4 @@
-# Architecture — Anchor Chat
+# Architecture — overshare.io
 
 ## Components
 
@@ -189,5 +189,5 @@ reasoning behind each.
   for why region is a deliberate choice here, not a default left alone.
 - Ably: one free app, EU cluster if available on the free tier at signup
   time (verify — this can change).
-- Secrets (DB URL, Ably key, model API key, Resend key) live in Vercel's
+- Secrets (DB URL, Ably key, model API key, Brevo key) live in Vercel's
   environment variable store, never in the repo.
