@@ -22,3 +22,18 @@ export async function sendMagicLinkEmail(email: string, url: string) {
     text: `Sign in here: ${url}\n\nThis link expires in 15 minutes and only works once.`,
   });
 }
+
+/** Same shape as sendMagicLinkEmail, separate copy so it's unmistakably a Listener link. */
+export async function sendListenerLoginEmail(email: string, url: string) {
+  if (!resend) {
+    console.log(`[dev] Listener sign-in link for ${email}: ${url}`);
+    return;
+  }
+
+  await resend.emails.send({
+    from: "Anchor Chat <onboarding@resend.dev>",
+    to: email,
+    subject: "Your Listener sign-in link",
+    text: `Sign in here: ${url}\n\nThis link expires in 15 minutes and only works once.`,
+  });
+}

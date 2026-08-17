@@ -17,8 +17,8 @@ model Session {
   phone     String?  @unique
   createdAt DateTime @default(now())
 
-  counselorId String?
-  counselor   Counselor? @relation(fields: [counselorId], references: [id])
+  listenerId String?
+  listener   Listener? @relation(fields: [listenerId], references: [id])
 
   queueEntry QueueEntry?
   messages   Message[]
@@ -30,7 +30,7 @@ model QueueEntry {
   session   Session     @relation(fields: [sessionId], references: [id])
   status    QueueStatus @default(WAITING)
   joinedAt  DateTime    @default(now())
-  // Set when a counselor claims this entry (Milestone 3). Needed now so the
+  // Set when a Listener claims this entry (Milestone 3). Needed now so the
   // wait-time estimate in docs/challenges/queue-design.md — queue depth
   // divided by recent claim throughput — has something to compute from.
   claimedAt DateTime?
@@ -61,7 +61,7 @@ model Message {
 
 enum MessageSender {
   VISITOR
-  COUNSELOR
+  LISTENER
 }
 
 // STANDARD/ELEVATED/URGENT are AI-assigned (docs/challenges/ai-triage.md).
@@ -74,10 +74,32 @@ enum UrgencyTier {
   UNCLASSIFIED
 }
 
-model Counselor {
+// email is real, not synthetic seed data — see the narrow carve-out in
+// docs/technical-requirements.md. displayName/bio arrive with Milestone 3.5's
+// application/profile subsystem (FR-9); this model stays minimal until then.
+model Listener {
   id       String    @id @default(cuid())
   email    String    @unique
+  isAdmin  Boolean   @default(false) // true only for the seeded admin, "Menty B" (FR-4.4)
   sessions Session[]
+
+  loginTokens ListenerLoginToken[]
+}
+
+// Mirrors MagicLinkToken's shape and reasoning (hash only, single-use,
+// short TTL) but resolves to a Listener row directly — there's no
+// bind-or-resume dance like the visitor flow, since a Listener already
+// exists (seeded, never self-serve — see tasks/TASKS.md Milestone 3).
+model ListenerLoginToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  listenerId String
+  listener   Listener  @relation(fields: [listenerId], references: [id])
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([listenerId])
 }
 
 // Only the hash is stored — same reasoning as a password hash, even though

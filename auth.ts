@@ -13,12 +13,18 @@ import { base64ToPublicKey, getRpConfig } from "@/lib/webauthn";
 declare module "next-auth" {
   interface User {
     phone?: string | null;
+    isAdmin?: boolean;
   }
   interface Session {
     user: {
-      id: string;
+      // Optional, not `string`: a Listener-only session (see the
+      // listener-login provider below) never gets a visitor sessionId —
+      // the two identities are deliberately kept apart, see SessionToken.
+      id?: string;
       email?: string | null;
       phone?: string | null;
+      listenerId?: string;
+      isAdmin?: boolean;
     };
   }
 }
@@ -26,10 +32,18 @@ declare module "next-auth" {
 // Augmenting next-auth/jwt's ambient JWT type directly didn't resolve
 // cleanly under this project's moduleResolution setting, so the jwt/session
 // callbacks below cast to this instead — same effect, one place to look.
+//
+// sessionId and listenerId are deliberately separate fields, never shared:
+// a Listener isn't a Session row at all (see prisma/schema.prisma), so
+// letting a listener sign-in populate `sessionId` would make
+// lib/session.ts's getSessionId() misread a Listener's id as a visitor
+// Session id downstream.
 type SessionToken = {
   sessionId?: string;
   email?: string | null;
   phone?: string | null;
+  listenerId?: string;
+  isAdmin?: boolean;
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -149,11 +163,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return { id: session.id, email: session.email, phone: session.phone };
       },
     }),
+    // Milestone 3 (T3.2) — a Listener is a separate identity from a visitor
+    // Session (see prisma/schema.prisma), so this is a parallel, minimal
+    // magic-link flow rather than reusing the visitor providers above: a
+    // Listener is seeded, not self-serve, so there's no "bind an email to
+    // an existing anonymous Session" step to do — just prove the requester
+    // controls a seeded Listener's inbox.
+    Credentials({
+      id: "listener-login",
+      name: "Listener sign-in",
+      credentials: { token: { label: "Token", type: "text" } },
+      async authorize(credentials): Promise<User | null> {
+        const token = credentials?.token;
+        if (typeof token !== "string" || !token) return null;
+
+        const record = await prisma.listenerLoginToken.findUnique({
+          where: { tokenHash: hashToken(token) },
+        });
+        if (!record || record.usedAt || record.expiresAt < new Date()) return null;
+
+        await prisma.listenerLoginToken.update({
+          where: { id: record.id },
+          data: { usedAt: new Date() },
+        });
+
+        const listener = await prisma.listener.findUnique({ where: { id: record.listenerId } });
+        if (!listener) return null;
+
+        return { id: listener.id, email: listener.email, isAdmin: listener.isAdmin };
+      },
+    }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       const t = token as SessionToken;
-      if (user) {
+      if (user && account?.provider === "listener-login") {
+        t.listenerId = user.id;
+        t.isAdmin = user.isAdmin ?? false;
+      } else if (user) {
         t.sessionId = user.id;
         if (user.email) t.email = user.email;
         if (user.phone) t.phone = user.phone;
@@ -165,6 +212,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (t.sessionId) session.user.id = t.sessionId;
       if (t.email) session.user.email = t.email;
       if (t.phone) session.user.phone = t.phone;
+      if (t.listenerId) {
+        session.user.listenerId = t.listenerId;
+        session.user.isAdmin = t.isAdmin ?? false;
+      }
       return session;
     },
   },

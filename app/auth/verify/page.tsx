@@ -23,19 +23,22 @@ function VerifyContent() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get("token");
+  // Absent for every existing visitor magic-link email already sent/queued
+  // before this param existed — default keeps those links working.
+  const provider = params.get("provider") ?? "magic-link";
   const [status, setStatus] = useState<"pending" | "error">(token ? "pending" : "error");
 
   useEffect(() => {
     if (!token) return;
 
-    signIn("magic-link", { token, redirect: false }).then((result) => {
+    signIn(provider, { token, redirect: false }).then((result) => {
       if (result?.ok) {
-        router.replace("/");
+        router.replace(provider === "listener-login" ? "/listener/queue" : "/");
       } else {
         setStatus("error");
       }
     });
-  }, [token, router]);
+  }, [token, provider, router]);
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-24 text-center">

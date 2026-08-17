@@ -45,3 +45,24 @@ export async function getWaitEstimateSeconds(position: number): Promise<number> 
 export async function leaveQueue(sessionId: string): Promise<void> {
   await prisma.queueEntry.deleteMany({ where: { sessionId } });
 }
+
+export type QueueEntrySummary = {
+  id: string;
+  position: number;
+  joinedAt: Date;
+};
+
+/** Listener-facing live list (FR-4.2) — ordered the same way position is derived. */
+export async function getWaitingQueueEntries(): Promise<QueueEntrySummary[]> {
+  const entries = await prisma.queueEntry.findMany({
+    where: { status: "WAITING" },
+    orderBy: { joinedAt: "asc" },
+    select: { id: true, joinedAt: true },
+  });
+
+  return entries.map((entry, index) => ({
+    id: entry.id,
+    position: index + 1,
+    joinedAt: entry.joinedAt,
+  }));
+}
