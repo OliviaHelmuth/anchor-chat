@@ -10,12 +10,13 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 
 ## Milestone 0 — Repo & infra bootstrap
 
-- [ ] T0.1 — `npx create-next-app` with TypeScript + Tailwind + App Router, push to a fresh GitHub repo
-- [ ] T0.2 — Provision Neon Postgres (EU/Frankfurt project), add `DATABASE_URL` to `.env.local` and Vercel env vars
-- [ ] T0.3 — Add Prisma, write the initial schema from `docs/architecture.md`'s ER diagram, run first migration
-- [ ] T0.4 — Provision Ably free app, add key to env vars
-- [ ] T0.5 — Deploy the empty scaffold to Vercel, confirm a public URL works [FR-7.1]
-- [ ] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2]
+- [x] T0.1 — `npx create-next-app` with TypeScript + Tailwind + App Router (pushing to GitHub is a separate step below, pending a go/no-go on repo name + visibility)
+- [ ] T0.2 — Provision Neon Postgres (EU/Frankfurt project), add `DATABASE_URL` to `.env.local` and Vercel env vars — **needs you**, account creation
+- [x] T0.3 — Add Prisma, write the initial schema from `docs/architecture.md`'s ER diagram (`prisma/schema.prisma`, validated) — migration itself blocked on T0.2
+- [ ] T0.4 — Provision Ably free app, add key to env vars — **needs you**, account creation
+- [ ] T0.5 — Deploy the empty scaffold to Vercel, confirm a public URL works [FR-7.1] — **needs you**, account creation
+- [ ] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2] — **needs you**, account creation
+- [ ] T0.7 — Push local repo to GitHub — pending your go-ahead on repo name/visibility
 
 ## Milestone 1 — Anonymous entry & queue [FR-1, FR-3]
 

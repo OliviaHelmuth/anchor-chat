@@ -1,0 +1,76 @@
+// Anchor Chat data model — mirrors the ER diagram in docs/architecture.md.
+// No name, dateOfBirth, or address field anywhere: that's a requirement
+// (FR-1.3 in docs/product-requirements.md), not an oversight.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  phone     String?  @unique
+  createdAt DateTime @default(now())
+
+  counselorId String?
+  counselor   Counselor? @relation(fields: [counselorId], references: [id])
+
+  queueEntry QueueEntry?
+  messages   Message[]
+}
+
+model QueueEntry {
+  id        String      @id @default(cuid())
+  sessionId String      @unique
+  session   Session     @relation(fields: [sessionId], references: [id])
+  status    QueueStatus @default(WAITING)
+  joinedAt  DateTime    @default(now())
+
+  @@index([status, joinedAt])
+}
+
+enum QueueStatus {
+  WAITING
+  CLAIMED
+}
+
+model Message {
+  id          String        @id @default(cuid())
+  sessionId   String
+  session     Session       @relation(fields: [sessionId], references: [id])
+  sender      MessageSender
+  body        String
+  urgencyTier UrgencyTier?
+  // Global, DB-assigned, strictly increasing — the server-side ordering
+  // FR-5.2 requires. Client timestamps are never trusted for ordering.
+  sequence    Int           @default(autoincrement())
+  createdAt   DateTime      @default(now())
+
+  @@index([sessionId, sequence])
+}
+
+enum MessageSender {
+  VISITOR
+  COUNSELOR
+}
+
+// STANDARD/ELEVATED/URGENT are AI-assigned (docs/challenges/ai-triage.md).
+// UNCLASSIFIED is the explicit fallback on classifier failure (FR-6.3) —
+// the message still gets stored and delivered, just untagged.
+enum UrgencyTier {
+  STANDARD
+  ELEVATED
+  URGENT
+  UNCLASSIFIED
+}
+
+model Counselor {
+  id       String    @id @default(cuid())
+  email    String    @unique
+  sessions Session[]
+}
