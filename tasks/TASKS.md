@@ -10,13 +10,14 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 
 ## Milestone 0 — Repo & infra bootstrap
 
-- [x] T0.1 — `npx create-next-app` with TypeScript + Tailwind + App Router (pushing to GitHub is a separate step below, pending a go/no-go on repo name + visibility)
-- [ ] T0.2 — Provision Neon Postgres (EU/Frankfurt project), add `DATABASE_URL` to `.env.local` and Vercel env vars — **needs you**, account creation
-- [x] T0.3 — Add Prisma, write the initial schema from `docs/architecture.md`'s ER diagram (`prisma/schema.prisma`, validated) — migration itself blocked on T0.2
-- [ ] T0.4 — Provision Ably free app, add key to env vars — **needs you**, account creation
-- [ ] T0.5 — Deploy the empty scaffold to Vercel, confirm a public URL works [FR-7.1] — **needs you**, account creation
-- [ ] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2] — **needs you**, account creation
+- [x] T0.1 — `npx create-next-app` with TypeScript + Tailwind + App Router
+- [x] T0.2 — Provision Neon Postgres (EU/Frankfurt project), add `DATABASE_URL` to `.env` and Vercel env vars (Production + Preview) — project "Krisenchat reverse engineered", `eu-central-1`
+- [x] T0.3 — Add Prisma, write the initial schema from `docs/architecture.md`'s ER diagram (`prisma/schema.prisma`), migration `20260817143232_init` applied
+- [x] T0.4 — Provision Ably free app, add key to env vars (local `.env` + Vercel Production/Preview)
+- [x] T0.5 — Deploy the empty scaffold to Vercel, confirm a public URL works [FR-7.1] — https://anchor-chat-kappa.vercel.app (200 OK)
+- [ ] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2] — **needs you**: `sentry-cli login` needs an interactive terminal (its browser-token flow doesn't work piped through a background shell); sign up at sentry.io yourself (email/Google) and hand me the DSN, or paste it into `.env` directly
 - [x] T0.7 — Push local repo to GitHub — https://github.com/OliviaHelmuth/anchor-chat (public)
+- [ ] T0.8 — Connect the GitHub repo to the Vercel project for auto-deploy-on-push — currently failing ("Failed to connect ... Make sure you have access"), likely fallout from the ongoing GitHub outage or Vercel's GitHub App not yet authorized since we signed into Vercel via email; retry once GitHub's incident clears
 
 ## Milestone 1 — Anonymous entry & queue [FR-1, FR-3]
 
