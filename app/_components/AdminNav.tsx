@@ -55,6 +55,9 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
               <Link href="/admin/listeners" className="hover:text-accent-2-text">
                 {t.admin.nav.listeners}
               </Link>
+              <Link href="/admin/archive" className="hover:text-accent-2-text">
+                {t.admin.nav.archive}
+              </Link>
             </>
           )}
           <div className="flex items-center gap-2">

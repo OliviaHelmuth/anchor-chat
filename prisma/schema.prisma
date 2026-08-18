@@ -20,6 +20,11 @@ model Session {
   // as the literal string.
   displayName String?
   createdAt DateTime @default(now())
+  // Presence-heartbeat timestamp (FR-11.4) — updated on a visitor message
+  // send and on a lightweight client heartbeat while the widget is open.
+  // Distinct from "last message" (Message.createdAt): a visitor can be
+  // online with the widget open and not have sent anything recently.
+  lastSeenAt DateTime?
 
   listenerId String?
   // SetNull, not the Restrict default: removing a Listener's listing

@@ -32,6 +32,13 @@ export async function sendMessage(
     select: { id: true, sender: true, body: true, sequence: true, createdAt: true },
   });
 
+  // FR-11.4's presence fallback: a visitor sending a message is definitely
+  // "seen" activity, same signal the heartbeat route (app/api/chat/heartbeat)
+  // records for the quieter "widget's open but not typing" case.
+  if (sender === "VISITOR") {
+    await prisma.session.update({ where: { id: sessionId }, data: { lastSeenAt: new Date() } });
+  }
+
   const payload: ChatMessage = { ...message, createdAt: message.createdAt.toISOString() };
   await publishChatMessage(sessionId, payload);
   return payload;

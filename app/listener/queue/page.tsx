@@ -25,6 +25,7 @@ export default async function ListenerQueuePage() {
           initialQueue={queue}
           initialOngoing={ongoing}
           listenerDisplayName={listenerRecord?.displayName ?? null}
+          isAdmin={listener.isAdmin}
         />
       </main>
     </>

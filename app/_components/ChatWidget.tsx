@@ -104,7 +104,13 @@ export function ChatWidget({
   useEffect(() => {
     if (chatState.kind === "none" || !sessionId) return;
 
-    const poll = setInterval(refreshState, POLL_INTERVAL_MS);
+    // FR-11.4 — a coarse "still here" signal for the admin dashboard's
+    // online/last-online indicator, piggybacked on the existing poll
+    // interval rather than a separate timer.
+    const poll = setInterval(() => {
+      void refreshState();
+      void fetch("/api/chat/heartbeat", { method: "POST" }).catch(() => {});
+    }, POLL_INTERVAL_MS);
     // authParams travels with every token request this client makes,
     // including silent renewals — the token route re-verifies `role` against
     // this specific chat server-side every time, not just once at connect

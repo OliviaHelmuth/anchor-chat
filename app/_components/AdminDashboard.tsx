@@ -1,24 +1,17 @@
 "use client";
 
 import * as Ably from "ably";
-import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { OngoingSession, QueueEntrySummary } from "@/lib/queue";
+import { formatDurationAgo } from "@/lib/time-format";
 import { useI18n } from "@/lib/i18n";
 import { ListenerChat } from "./ListenerChat";
 
 const POLL_INTERVAL_MS = 20_000;
 const OPEN_SESSIONS_STORAGE_KEY = "anchor-chat:listener-open-sessions";
 
-function formatWaitingSince(
-  joinedAt: Date | string,
-  t: { justNow: string; oneMinuteAgo: string; minutesAgo: string },
-): string {
-  const ms = Date.now() - new Date(joinedAt).getTime();
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 1) return t.justNow;
-  if (minutes === 1) return t.oneMinuteAgo;
-  return t.minutesAgo.replace("{n}", String(minutes));
-}
+type SortBy = "lastOnline" | "lastAnswered";
 
 function readStoredOpenSessions(): string[] {
   if (typeof window === "undefined") return [];
@@ -31,8 +24,23 @@ function readStoredOpenSessions(): string[] {
   }
 }
 
+// FR-11.5 — ascending on purpose: the chat that's gone longest without the
+// signal you're sorting by (visitor presence, or your own last reply)
+// floats to the top, since that's the one most likely to need attention.
+// A visitor currently online sorts as "now" under the lastOnline key, so
+// they land at the bottom of that ordering — nothing to chase there.
+function sortValue(session: OngoingSession, sortBy: SortBy, online: boolean): number {
+  if (sortBy === "lastOnline") {
+    if (online) return Date.now();
+    const fallback = session.visitorLastSeenAt ?? session.lastVisitorMessageAt ?? session.claimedAt;
+    return fallback ? new Date(fallback).getTime() : 0;
+  }
+  const answered = session.lastListenerMessageAt ?? session.claimedAt;
+  return answered ? new Date(answered).getTime() : 0;
+}
+
 // The dashboard shell: queue (with multi-select claim), the Listener's own
-// ongoing claimed chats, and a row of simultaneously-open ListenerChat
+// claimed-chat list (FR-11), and a row of simultaneously-open ListenerChat
 // panels. Previously each claim navigated to its own page
 // (/listener/chat/[id]) — a real Next.js navigation unmounts the whole
 // previous page, which is why switching chats used to silently disconnect
@@ -43,10 +51,12 @@ export function AdminDashboard({
   initialQueue,
   initialOngoing,
   listenerDisplayName,
+  isAdmin,
 }: {
   initialQueue: QueueEntrySummary[];
   initialOngoing: OngoingSession[];
   listenerDisplayName: string | null;
+  isAdmin: boolean;
 }) {
   const { t } = useI18n();
   // Falls back to a generic label rather than "You" — the request was for
@@ -60,8 +70,16 @@ export function AdminDashboard({
   const [openSessionIds, setOpenSessionIds] = useState<string[]>([]);
   const [claimingIds, setClaimingIds] = useState<Set<string>>(new Set());
   const [hydrated, setHydrated] = useState(false);
+  const [sortBy, setSortBy] = useState<SortBy>("lastOnline");
+  // FR-11.4 — sessionId -> is the visitor currently Ably-present. Only
+  // carries entries for chats this connection has actually subscribed
+  // presence for (see the effect below); missing means "not known yet,"
+  // rendered the same as offline until the first presence.get() resolves.
+  const [visitorOnline, setVisitorOnline] = useState<Record<string, boolean>>({});
 
   const fetchingQueueRef = useRef(false);
+  const ablyRef = useRef<Ably.Realtime | null>(null);
+  const presenceChannelsRef = useRef<Map<string, Ably.RealtimeChannel>>(new Map());
 
   async function refreshQueue() {
     if (fetchingQueueRef.current) return;
@@ -83,8 +101,9 @@ export function AdminDashboard({
     const data = (await res.json()) as { sessions: OngoingSession[] };
     setOngoing(data.sessions);
     // A panel whose chat dropped out of "ongoing" (the visitor left,
-    // deleting the QueueEntry — see getOngoingSessionsForListener) has no
-    // one left to talk to; auto-close it rather than leave a dead panel.
+    // deleting the QueueEntry, or it aged into the archive — see
+    // getOngoingSessionsForListener) has no one left to talk to; auto-close
+    // it rather than leave a dead panel.
     setOpenSessionIds((prev) => prev.filter((id) => data.sessions.some((s) => s.sessionId === id)));
   }
 
@@ -118,8 +137,14 @@ export function AdminDashboard({
 
     // Same push-plus-poll-fallback pattern as the old ListenerQueueList
     // (T1.5) — a claim by any Listener changes both the shared waiting
-    // queue and (for the claimer) their own ongoing list.
-    const ably = new Ably.Realtime({ authUrl: "/api/ably/token" });
+    // queue and (for the claimer) their own ongoing list. role:"listener"
+    // with no chatId also grants this connection presence-only capability
+    // on every chat this Listener currently has claimed (see the Ably
+    // token route) — the same connection doubles as FR-11.4's dashboard-
+    // wide online/last-online source, rather than opening one connection
+    // per claimed chat.
+    const ably = new Ably.Realtime({ authUrl: "/api/ably/token", authParams: { role: "listener" } });
+    ablyRef.current = ably;
     const channel = ably.channels.get("queue");
     const handleUpdate = () => {
       void refreshQueue();
@@ -131,8 +156,90 @@ export function AdminDashboard({
       clearInterval(poll);
       channel.unsubscribe("update", handleUpdate);
       ably.close();
+      ablyRef.current = null;
     };
   }, []);
+
+  const claimedIdsKey = useMemo(
+    () => ongoing.map((s) => s.sessionId).sort().join(","),
+    [ongoing],
+  );
+
+  // FR-11.4 — keeps the shared connection's presence subscriptions in sync
+  // with whichever chats are currently claimed. Imperative diff against
+  // presenceChannelsRef rather than a per-render subscribe/unsubscribe:
+  // channels that are still claimed stay subscribed across re-renders,
+  // only the actual additions/removals touch the network.
+  useEffect(() => {
+    const ably = ablyRef.current;
+    if (!ably) return;
+
+    const claimedIds = new Set(ongoing.map((s) => s.sessionId));
+    const subscribed = presenceChannelsRef.current;
+
+    // Removing a subscription needs no new capability, so it doesn't wait
+    // on re-authorization below.
+    for (const [sessionId, channel] of subscribed) {
+      if (claimedIds.has(sessionId)) continue;
+      channel.presence.unsubscribe();
+      ably.channels.release(`chat:${sessionId}`);
+      subscribed.delete(sessionId);
+      setVisitorOnline((prev) => {
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
+      });
+    }
+
+    const newIds = [...claimedIds].filter((id) => !subscribed.has(id));
+    if (newIds.length === 0) return;
+
+    let cancelled = false;
+    // Re-authorize and *wait* for it before subscribing: a newly-claimed
+    // chat's presence capability is computed server-side from the caller's
+    // current claimed list (see the Ably token route), so attaching with
+    // the connection's existing token would 401 against a channel it
+    // doesn't know about yet — caught live in T5.7's verification pass
+    // (Ably console: "Channel denied access based on given capability").
+    ably.auth
+      .authorize()
+      .catch(() => {})
+      .then(() => {
+        if (cancelled) return;
+        for (const sessionId of newIds) {
+          if (subscribed.has(sessionId)) continue;
+          const channel = ably.channels.get(`chat:${sessionId}`);
+          const refresh = async () => {
+            try {
+              const members = await channel.presence.get();
+              setVisitorOnline((prev) => ({ ...prev, [sessionId]: members.some((m) => m.clientId === "visitor") }));
+            } catch {
+              // A presence read failing shouldn't break the dashboard —
+              // same never-block-core-function posture as the typing
+              // indicator's.
+            }
+          };
+          channel.presence.subscribe(["enter", "update", "leave"], () => void refresh()).catch(() => {});
+          void refresh();
+          subscribed.set(sessionId, channel);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claimedIdsKey]);
+
+  const sortedOngoing = useMemo(
+    () =>
+      [...ongoing].sort(
+        (a, b) =>
+          sortValue(a, sortBy, visitorOnline[a.sessionId] ?? false) -
+          sortValue(b, sortBy, visitorOnline[b.sessionId] ?? false),
+      ),
+    [ongoing, sortBy, visitorOnline],
+  );
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -219,7 +326,7 @@ export function AdminDashboard({
                       <span className="text-ink/70">
                         {entry.displayName ?? t.admin.dashboard.anonymous} —{" "}
                         {t.admin.dashboard.waitingSince}{" "}
-                        {formatWaitingSince(entry.joinedAt, t.admin.dashboard)}
+                        {formatDurationAgo(entry.joinedAt, t.admin.dashboard)}
                       </span>
                     </span>
                   </label>
@@ -236,29 +343,84 @@ export function AdminDashboard({
           )}
         </section>
 
+        {/* FR-11.1/11.2/11.3/11.4/11.5 — the claimed-chat list, distinct
+            from the open transcript panels below: who claimed it, the
+            visitor, when they last replied, and whether they're online
+            right now, all visible without opening a panel. */}
         <section className="nb bg-surface p-4">
-          <h2 className="font-display text-lg">{t.admin.dashboard.ongoingChats}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-lg">{t.admin.dashboard.ongoingChats}</h2>
+            {isAdmin && (
+              <Link
+                href="/admin/archive"
+                className="text-xs font-bold text-accent-2-text underline-offset-2 hover:underline"
+              >
+                {t.admin.dashboard.viewArchive}
+              </Link>
+            )}
+          </div>
+
           {ongoing.length === 0 ? (
             <p className="mt-3 text-sm text-ink/70">{t.admin.dashboard.noClaimedChats}</p>
           ) : (
-            <ul className="mt-3 flex flex-col gap-1">
-              {ongoing.map((session) => {
-                const isOpen = openSessionIds.includes(session.sessionId);
-                return (
-                  <li key={session.sessionId}>
-                    <button
-                      onClick={() => openPanel(session.sessionId)}
-                      className={`w-full rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-bg ${
-                        isOpen ? "font-bold text-accent-2-text" : ""
-                      }`}
-                    >
-                      {session.displayName ?? t.admin.dashboard.anonymous}
-                      {isOpen && <span className="ml-2 text-xs text-ink/70">{t.admin.dashboard.open}</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <label className="mt-3 flex items-center gap-2 text-xs text-ink/70">
+                {t.admin.dashboard.sortBy}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortBy)}
+                  className="nb-sm bg-bg px-2 py-1 text-xs text-ink"
+                >
+                  <option value="lastOnline">{t.admin.dashboard.sortLastOnline}</option>
+                  <option value="lastAnswered">{t.admin.dashboard.sortLastAnswered}</option>
+                </select>
+              </label>
+
+              <ul className="mt-3 flex flex-col gap-2">
+                {sortedOngoing.map((session) => {
+                  const isOpen = openSessionIds.includes(session.sessionId);
+                  const online = visitorOnline[session.sessionId] ?? false;
+                  return (
+                    <li key={session.sessionId}>
+                      <button
+                        onClick={() => openPanel(session.sessionId)}
+                        className={`nb-sm flex w-full flex-col gap-1 bg-bg px-3 py-2 text-left text-sm transition hover:bg-surface ${
+                          isOpen ? "border-accent-2-text" : ""
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="font-bold">
+                            {session.displayName ?? t.admin.dashboard.anonymous}
+                          </span>
+                          <span className="flex items-center gap-1.5 text-xs text-ink/70">
+                            <span
+                              aria-hidden
+                              className={`h-2 w-2 rounded-full ${online ? "bg-success-text" : "bg-ink/30"}`}
+                            />
+                            {online
+                              ? t.admin.dashboard.online
+                              : session.visitorLastSeenAt
+                                ? `${t.admin.dashboard.lastOnline}: ${formatDurationAgo(session.visitorLastSeenAt, t.admin.dashboard)}`
+                                : t.admin.dashboard.lastOnline}
+                          </span>
+                        </span>
+                        <span className="text-xs text-ink/70">
+                          {t.admin.dashboard.claimedBy} {session.listenerDisplayName?.trim() || listenerName}
+                        </span>
+                        <span className="text-xs text-ink/70">
+                          {session.lastVisitorMessageAt
+                            ? `${t.admin.dashboard.sinceLastReply}: ${formatDurationAgo(session.lastVisitorMessageAt, t.admin.dashboard)}`
+                            : t.admin.dashboard.noMessagesYet}
+                        </span>
+                        {isOpen && (
+                          <span className="text-xs font-bold text-accent-2-text">{t.admin.dashboard.open}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
         </section>
       </div>

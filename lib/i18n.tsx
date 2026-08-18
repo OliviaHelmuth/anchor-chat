@@ -55,12 +55,22 @@ interface Dictionary {
       yourProfile: string;
       applications: string;
       listeners: string;
+      archive: string;
       signOut: string;
     };
     queuePage: { title: string; signedInAdmin: string; signedInListener: string };
     profilePage: { title: string; shownOn: string; yourPublicPage: string; noRealName: string };
     applicationsPage: { title: string; subtitle: string };
     listenersPage: { title: string; subtitle: string };
+    archivePage: {
+      title: string;
+      subtitle: string;
+      empty: string;
+      backToDashboard: string;
+      visitor: string;
+      claimedOn: string;
+      lastActivity: string;
+    };
     dashboard: {
       queue: string;
       claim: string;
@@ -76,6 +86,18 @@ interface Dictionary {
       justNow: string;
       oneMinuteAgo: string;
       minutesAgo: string;
+      hoursAgo: string;
+      daysAgo: string;
+      claimedBy: string;
+      lastMessage: string;
+      sinceLastReply: string;
+      noMessagesYet: string;
+      online: string;
+      lastOnline: string;
+      sortBy: string;
+      sortLastOnline: string;
+      sortLastAnswered: string;
+      viewArchive: string;
     };
     chat: { noMessages: string; typeMessage: string; send: string; defaultListenerName: string };
     applications: {
@@ -215,6 +237,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
         yourProfile: "Dein Profil",
         applications: "Bewerbungen",
         listeners: "Listener",
+        archive: "Archiv",
         signOut: "Abmelden",
       },
       queuePage: {
@@ -236,6 +259,15 @@ export const dictionaries: Record<Locale, Dictionary> = {
         title: "Listener",
         subtitle: "Nur für Admins: Listing-Verwaltung.",
       },
+      archivePage: {
+        title: "Archiv",
+        subtitle: "Chats ohne Aktivität seit 40+ Tagen — nur lesbar.",
+        empty: "Noch nichts archiviert.",
+        backToDashboard: "Zurück zum Dashboard",
+        visitor: "Besuchende",
+        claimedOn: "Übernommen am",
+        lastActivity: "Letzte Aktivität",
+      },
       dashboard: {
         queue: "Warteschlange",
         claim: "Übernehmen",
@@ -251,6 +283,18 @@ export const dictionaries: Record<Locale, Dictionary> = {
         justNow: "gerade eben",
         oneMinuteAgo: "vor 1 Minute",
         minutesAgo: "vor {n} Minuten",
+        hoursAgo: "vor {n} Std.",
+        daysAgo: "vor {n} Tagen",
+        claimedBy: "Übernommen von",
+        lastMessage: "Letzte Nachricht",
+        sinceLastReply: "seit letzter Antwort",
+        noMessagesYet: "Noch keine Nachricht",
+        online: "Online",
+        lastOnline: "Zuletzt online",
+        sortBy: "Sortieren nach",
+        sortLastOnline: "Zuletzt online (Besuchende)",
+        sortLastAnswered: "Deine letzte Antwort",
+        viewArchive: "Archiv ansehen",
       },
       chat: {
         noMessages: "Noch keine Nachrichten.",
@@ -393,6 +437,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
         yourProfile: "Your profile",
         applications: "Applications",
         listeners: "Listeners",
+        archive: "Archive",
         signOut: "Sign out",
       },
       queuePage: {
@@ -414,6 +459,15 @@ export const dictionaries: Record<Locale, Dictionary> = {
         title: "Listeners",
         subtitle: "Admin-only listing management.",
       },
+      archivePage: {
+        title: "Archive",
+        subtitle: "Chats with no activity for 40+ days — read-only.",
+        empty: "Nothing archived yet.",
+        backToDashboard: "Back to dashboard",
+        visitor: "Visitor",
+        claimedOn: "Claimed on",
+        lastActivity: "Last activity",
+      },
       dashboard: {
         queue: "Queue",
         claim: "Claim",
@@ -429,6 +483,18 @@ export const dictionaries: Record<Locale, Dictionary> = {
         justNow: "just now",
         oneMinuteAgo: "1 minute ago",
         minutesAgo: "{n} minutes ago",
+        hoursAgo: "{n}h ago",
+        daysAgo: "{n}d ago",
+        claimedBy: "Claimed by",
+        lastMessage: "Last message",
+        sinceLastReply: "since last reply",
+        noMessagesYet: "No messages yet",
+        online: "Online",
+        lastOnline: "Last online",
+        sortBy: "Sort by",
+        sortLastOnline: "Visitor last online",
+        sortLastAnswered: "Time you last answered",
+        viewArchive: "View archive",
       },
       chat: {
         noMessages: "No messages yet.",
