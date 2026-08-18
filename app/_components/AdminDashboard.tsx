@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { OngoingSession, QueueEntrySummary } from "@/lib/queue";
 import { formatDurationAgo } from "@/lib/time-format";
 import { useI18n } from "@/lib/i18n";
+import { useUnreadTabNotifier } from "@/lib/useUnreadTabNotifier";
 import { ListenerChat } from "./ListenerChat";
 
 const POLL_INTERVAL_MS = 20_000;
@@ -64,6 +65,12 @@ export function AdminDashboard({
   // self/other distinction. Can happen if an approved Listener hasn't set
   // their own profile displayName yet (T3.5.3 — it starts blank).
   const listenerName = listenerDisplayName?.trim() || t.admin.chat.defaultListenerName;
+  // T4.7 — one notifier for the whole dashboard tab, not one per panel:
+  // a new message in any open panel should flip the tab title/favicon and
+  // (if opted in) fire a native notification, whether or not that panel
+  // is the one currently scrolled into view.
+  const { notifyNewMessage, notifyPermission, desktopEnabled, toggleDesktopNotifications } =
+    useUnreadTabNotifier("overshare.io — Admin", t.admin.dashboard.notifyBody);
   const [queue, setQueue] = useState<QueueEntrySummary[]>(initialQueue);
   const [ongoing, setOngoing] = useState<OngoingSession[]>(initialOngoing);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -76,10 +83,22 @@ export function AdminDashboard({
   // presence for (see the effect below); missing means "not known yet,"
   // rendered the same as offline until the first presence.get() resolves.
   const [visitorOnline, setVisitorOnline] = useState<Record<string, boolean>>({});
+  // In-app unread indicator, requested directly: a claimed chat whose
+  // panel isn't open gets a dot in the "Laufende Chats" list the moment a
+  // new visitor message lands on it, cleared the moment that panel opens.
+  // Deliberately separate from useUnreadTabNotifier's tab-level title/
+  // favicon badge (T4.7) — this is "which specific chat needs you," not
+  // "something happened somewhere."
+  const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(new Set());
 
   const fetchingQueueRef = useRef(false);
   const ablyRef = useRef<Ably.Realtime | null>(null);
   const presenceChannelsRef = useRef<Map<string, Ably.RealtimeChannel>>(new Map());
+  // Read inside the message handler below, which is only re-created when
+  // the set of *claimed* chats changes (see claimedIdsKey) — not when a
+  // panel opens/closes — so it needs a ref to see the current
+  // openSessionIds rather than closing over a stale array.
+  const openSessionIdsRef = useRef<string[]>([]);
 
   async function refreshQueue() {
     if (fetchingQueueRef.current) return;
@@ -128,6 +147,19 @@ export function AdminDashboard({
     if (!hydrated) return;
     window.localStorage.setItem(OPEN_SESSIONS_STORAGE_KEY, JSON.stringify(openSessionIds));
   }, [openSessionIds, hydrated]);
+
+  useEffect(() => {
+    openSessionIdsRef.current = openSessionIds;
+    // A panel that's open is, by definition, not unread — covers both
+    // openPanel() and the localStorage-restored set on first mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnreadSessionIds((prev) => {
+      if (openSessionIds.every((id) => !prev.has(id))) return prev;
+      const next = new Set(prev);
+      for (const id of openSessionIds) next.delete(id);
+      return next;
+    });
+  }, [openSessionIds]);
 
   useEffect(() => {
     const poll = setInterval(() => {
@@ -182,6 +214,7 @@ export function AdminDashboard({
     for (const [sessionId, channel] of subscribed) {
       if (claimedIds.has(sessionId)) continue;
       channel.presence.unsubscribe();
+      channel.unsubscribe("message");
       ably.channels.release(`chat:${sessionId}`);
       subscribed.delete(sessionId);
       setVisitorOnline((prev) => {
@@ -221,6 +254,21 @@ export function AdminDashboard({
           };
           channel.presence.subscribe(["enter", "update", "leave"], () => void refresh()).catch(() => {});
           void refresh();
+
+          // Covers the case ListenerChat's own onVisitorMessage callback
+          // can't: a message arriving on a chat that's claimed but whose
+          // panel was never opened, so no ListenerChat instance exists yet
+          // to notice it. Skip when the panel *is* open — ListenerChat
+          // already handles that message (sound + notifyNewMessage), and
+          // an open panel isn't "unread" by definition.
+          channel.subscribe("message", (msg: Ably.Message) => {
+            const payload = msg.data as { sender?: string };
+            if (payload.sender !== "VISITOR") return;
+            if (openSessionIdsRef.current.includes(sessionId)) return;
+            setUnreadSessionIds((prev) => (prev.has(sessionId) ? prev : new Set(prev).add(sessionId)));
+            notifyNewMessage();
+          }).catch(() => {});
+
           subscribed.set(sessionId, channel);
         }
       });
@@ -350,14 +398,26 @@ export function AdminDashboard({
         <section className="nb bg-surface p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-lg">{t.admin.dashboard.ongoingChats}</h2>
-            {isAdmin && (
-              <Link
-                href="/admin/archive"
-                className="text-xs font-bold text-accent-2-text underline-offset-2 hover:underline"
-              >
-                {t.admin.dashboard.viewArchive}
-              </Link>
-            )}
+            <div className="flex items-center gap-3">
+              {notifyPermission !== "unsupported" && notifyPermission !== "denied" && (
+                <button
+                  onClick={() => void toggleDesktopNotifications()}
+                  aria-pressed={desktopEnabled}
+                  title={desktopEnabled ? t.admin.dashboard.notifyOn : t.admin.dashboard.notifyOff}
+                  className={`transition hover:text-ink ${desktopEnabled ? "text-ink" : "text-ink/40"}`}
+                >
+                  <BellIcon filled={desktopEnabled} />
+                </button>
+              )}
+              {isAdmin && (
+                <Link
+                  href="/admin/archive"
+                  className="text-xs font-bold text-accent-2-text underline-offset-2 hover:underline"
+                >
+                  {t.admin.dashboard.viewArchive}
+                </Link>
+              )}
+            </div>
           </div>
 
           {ongoing.length === 0 ? (
@@ -380,6 +440,7 @@ export function AdminDashboard({
                 {sortedOngoing.map((session) => {
                   const isOpen = openSessionIds.includes(session.sessionId);
                   const online = visitorOnline[session.sessionId] ?? false;
+                  const isUnread = unreadSessionIds.has(session.sessionId);
                   return (
                     <li key={session.sessionId}>
                       <button
@@ -389,8 +450,17 @@ export function AdminDashboard({
                         }`}
                       >
                         <span className="flex items-center justify-between gap-2">
-                          <span className="font-bold">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            {isUnread && (
+                              <span
+                                aria-hidden
+                                className="h-2 w-2 shrink-0 rounded-full bg-error-text"
+                              />
+                            )}
                             {session.displayName ?? t.admin.dashboard.anonymous}
+                            {isUnread && (
+                              <span className="sr-only">{t.admin.dashboard.unread}</span>
+                            )}
                           </span>
                           <span className="flex items-center gap-1.5 text-xs text-ink/70">
                             <span
@@ -447,11 +517,31 @@ export function AdminDashboard({
                   ✕
                 </button>
               </div>
-              <ListenerChat sessionId={sessionId} visitorName={visitorName} listenerName={listenerName} />
+              <ListenerChat
+                sessionId={sessionId}
+                visitorName={visitorName}
+                listenerName={listenerName}
+                onVisitorMessage={notifyNewMessage}
+              />
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function BellIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 10a6 6 0 1 1 12 0c0 3.5 1.5 5 1.5 5h-15S6 13.5 6 10Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        fill={filled ? "currentColor" : "none"}
+      />
+      <path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }

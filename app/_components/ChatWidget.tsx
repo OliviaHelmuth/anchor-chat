@@ -7,6 +7,7 @@ import { useChatWidget } from "./ChatWidgetContext";
 import type { ChatState } from "@/lib/queue";
 import { mergeMessages, type ChatMessage } from "@/lib/chat-client";
 import { playSentSound, playReceivedSound } from "@/lib/chat-sounds";
+import { useUnreadTabNotifier } from "@/lib/useUnreadTabNotifier";
 
 const POLL_INTERVAL_MS = 20_000;
 const TYPING_IDLE_MS = 3_000;
@@ -48,6 +49,36 @@ export function ChatWidget({
   const [sending, setSending] = useState(false);
   const [nameInput, setNameInput] = useState(initialDisplayName ?? "");
   const [listenerTyping, setListenerTyping] = useState(false);
+  // In-app unread indicator, requested directly: a red badge on the round
+  // trigger bubble while the widget is minimized, separate from
+  // useUnreadTabNotifier's tab-level title/favicon badge (T4.7) — this one
+  // is visible even if the visitor never looks away from the tab, just has
+  // the panel minimized.
+  const [unreadCount, setUnreadCount] = useState(0);
+  // T4.7 — generic body, no message content, same posture as the AI
+  // triage redaction and anonymous-by-default sessions elsewhere.
+  const { notifyNewMessage, notifyPermission, desktopEnabled, toggleDesktopNotifications } =
+    useUnreadTabNotifier("overshare.io", `New message from ${LISTENER_NAME}`);
+
+  // Opening the widget is what "reading" the unread messages means here —
+  // clear the moment it does, not on some other signal. Deriving from a
+  // prop-like value (open) on change, not syncing with an external system
+  // mid-render — same shape as the other set-state-in-effect exceptions
+  // already established in this file/AdminDashboard.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (open) setUnreadCount(0);
+  }, [open]);
+
+  // The Ably message handler below lives inside an effect keyed on
+  // [chatState.kind !== "none", sessionId] — open/close doesn't retrigger
+  // it, so reading `open` there directly would see a stale value from
+  // whenever that effect last ran. A ref stays current across renders
+  // without forcing a reconnect every time the widget opens or closes.
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
 
   const fetchingStateRef = useRef(false);
   const messagesLoadedRef = useRef(false);
@@ -138,7 +169,11 @@ export function ChatWidget({
       // visitor-sent message echoes back here too — only sound for the
       // other participant's messages, since the sender already got
       // playSentSound() at the moment they hit Send.
-      if (payload.sender === "LISTENER") playReceivedSound();
+      if (payload.sender === "LISTENER") {
+        playReceivedSound();
+        notifyNewMessage();
+        if (!openRef.current) setUnreadCount((count) => count + 1);
+      }
       setMessages((prev) => mergeMessages(prev, [payload]));
       lastSequenceRef.current = Math.max(lastSequenceRef.current, payload.sequence);
     };
@@ -283,9 +318,20 @@ export function ChatWidget({
         }`}
       >
         <ChatBubbleIcon />
-        {listenerTyping && !open && (
-          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-bg bg-accent" />
+        {!open && unreadCount > 0 ? (
+          <span
+            aria-hidden
+            className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-bg bg-error-text px-1 text-[10px] font-bold text-white"
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        ) : (
+          listenerTyping &&
+          !open && (
+            <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-bg bg-accent" />
+          )
         )}
+        {unreadCount > 0 && !open && <span className="sr-only">{unreadCount} unread messages</span>}
       </button>
 
       <div
@@ -299,13 +345,28 @@ export function ChatWidget({
           {/* Who you're chatting with, on top — same treatment as the
               visitor's name atop each panel in the admin dashboard. */}
           <span className="font-display text-sm text-bg">{LISTENER_NAME}</span>
-          <button
-            onClick={closeWidget}
-            aria-label="Minimize chat"
-            className="text-bg/70 transition hover:text-bg"
-          >
-            <MinimizeIcon />
-          </button>
+          <div className="flex items-center gap-3">
+            {notifyPermission !== "unsupported" && notifyPermission !== "denied" && (
+              <button
+                onClick={() => void toggleDesktopNotifications()}
+                aria-label={
+                  desktopEnabled ? "Turn off message notifications" : "Get notified about new messages"
+                }
+                aria-pressed={desktopEnabled}
+                title={desktopEnabled ? "Notifications on" : "Get notified about new messages"}
+                className={`transition hover:text-bg ${desktopEnabled ? "text-bg" : "text-bg/50"}`}
+              >
+                <BellIcon filled={desktopEnabled} />
+              </button>
+            )}
+            <button
+              onClick={closeWidget}
+              aria-label="Minimize chat"
+              className="text-bg/70 transition hover:text-bg"
+            >
+              <MinimizeIcon />
+            </button>
+          </div>
         </div>
 
         {!introDismissed ? (
@@ -412,6 +473,21 @@ function MinimizeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BellIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 10a6 6 0 1 1 12 0c0 3.5 1.5 5 1.5 5h-15S6 13.5 6 10Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        fill={filled ? "currentColor" : "none"}
+      />
+      <path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }

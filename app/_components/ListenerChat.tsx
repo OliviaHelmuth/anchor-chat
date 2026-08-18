@@ -18,10 +18,16 @@ export function ListenerChat({
   sessionId,
   visitorName,
   listenerName,
+  onVisitorMessage,
 }: {
   sessionId: string;
   visitorName: string;
   listenerName: string;
+  // T4.7 — the unread tab notifier lives one level up in AdminDashboard
+  // (it covers every open panel, not just this one), so a new visitor
+  // message here just reports up rather than each panel keeping its own
+  // notifier instance.
+  onVisitorMessage?: () => void;
 }) {
   const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -80,7 +86,10 @@ export function ListenerChat({
       // Same reasoning as ChatWidget's handleChatMessage: Ably echoes the
       // Listener's own sent message back here too, so only sound for the
       // visitor's messages — the sender already heard playSentSound().
-      if (payload.sender === "VISITOR") playReceivedSound();
+      if (payload.sender === "VISITOR") {
+        playReceivedSound();
+        onVisitorMessage?.();
+      }
       setMessages((prev) => mergeMessages(prev, [payload]));
       lastSequenceRef.current = Math.max(lastSequenceRef.current, payload.sequence);
     };

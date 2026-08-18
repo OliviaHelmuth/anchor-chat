@@ -98,6 +98,10 @@ interface Dictionary {
       sortLastOnline: string;
       sortLastAnswered: string;
       viewArchive: string;
+      notifyOn: string;
+      notifyOff: string;
+      notifyBody: string;
+      unread: string;
     };
     chat: { noMessages: string; typeMessage: string; send: string; defaultListenerName: string };
     applications: {
@@ -295,6 +299,10 @@ export const dictionaries: Record<Locale, Dictionary> = {
         sortLastOnline: "Zuletzt online (Besuchende)",
         sortLastAnswered: "Deine letzte Antwort",
         viewArchive: "Archiv ansehen",
+        notifyOn: "Benachrichtigungen an",
+        notifyOff: "Bei neuen Nachrichten benachrichtigen",
+        notifyBody: "Neue Nachricht in einem deiner Chats",
+        unread: "Ungelesen",
       },
       chat: {
         noMessages: "Noch keine Nachrichten.",
@@ -495,6 +503,10 @@ export const dictionaries: Record<Locale, Dictionary> = {
         sortLastOnline: "Visitor last online",
         sortLastAnswered: "Time you last answered",
         viewArchive: "View archive",
+        notifyOn: "Notifications on",
+        notifyOff: "Get notified about new messages",
+        notifyBody: "New message in one of your chats",
+        unread: "Unread",
       },
       chat: {
         noMessages: "No messages yet.",
