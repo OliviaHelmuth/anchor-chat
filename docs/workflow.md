@@ -67,6 +67,15 @@ For each task, the useful sub-loop is:
    code compiles; it's done because the acceptance criteria in
    `docs/product-requirements.md` are met.
 
+   Concretely, per `docs/technical-requirements.md`'s Testing expectations:
+   run `npm test` continuously while touching `lib/` or a component — it's
+   fast and needs nothing running. Run `npm run test:all` (unit + component
+   + integration + E2E, needs local Postgres up — see that doc's Local
+   development setup section) once before checking a task off, and always
+   before opening a PR — CI (`.github/workflows/ci.yml`) runs the same suite
+   on push as the final backstop, so local `test:all` is what catches a
+   failure before it's someone else's problem.
+
 ### 5. Check it off and move on
 
 Update `tasks/TASKS.md` immediately, not in a batch at the end of a session —

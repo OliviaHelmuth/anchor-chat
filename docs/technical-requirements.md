@@ -140,11 +140,87 @@ itself.
 | AI | Groq or Gemini free tier, or local Ollama | See hosting doc for the trade-offs between them |
 | Error tracking | Sentry | 5k events/month |
 
+## Local development setup
+
+Neon is the deployed default (`docs/hosting-and-scaling.md`), but
+`DATABASE_URL` is interchangeable — Prisma doesn't care whether it's talking
+to Neon or a local Postgres, same schema and migrations either way. Local
+Postgres is a documented, working alternative for day-to-day dev, useful for
+working offline or without provisioning a cloud DB account (relevant to
+`tasks/TASKS.md`'s T10.2, which needs the app runnable from a genuinely
+fresh clone):
+
+- Install Postgres locally (e.g. `brew install postgresql@14`), start it
+  (`brew services start postgresql@14`), then `createdb overshare_dev`.
+- Point `DATABASE_URL` in your local `.env` at it:
+  `postgresql://<user>@localhost:5432/overshare_dev`.
+- `npx prisma migrate deploy` (or `npm run db:migrate` for dev-mode
+  migrations) + `npm run db:seed` — identical commands to the Neon path.
+- Trade-off, same framing as `hosting-and-scaling.md`'s decision tables:
+  local Postgres has no cold-start/autosuspend (faster local iteration) but
+  isn't reachable from a deployed Vercel preview — Neon (or another cloud
+  Postgres) is still required for anything that needs to be online.
+- Same pattern the test suite already uses for its own isolated database —
+  see Testing expectations below — just a separate database name
+  (`overshare_dev` vs. `overshare_test`) on the same local cluster, never
+  shared with each other or with the real Neon deployment.
+
+Scope note: this only covers the database. Ably has no meaningful local
+substitute without a real architecture swap (see
+`docs/hosting-and-scaling.md`'s realtime section); Brevo/OTP already fall
+back to logging locally with no external account needed (`lib/email.ts`);
+Sentry and the AI providers (Groq/Gemini/Ollama) are unaffected either way.
+
 ## Testing expectations
 
+Tooling: **Vitest** (unit + component + integration) and **Playwright**
+(E2E), wired into a GitHub Actions CI workflow. No mocking of the app's own
+DB or external services in integration/E2E tests — same "real dev server,
+real Postgres, real Ably" convention already used for every milestone's
+manual verification, just automated. Auth in tests never needs a real inbox:
+`lib/email.ts` already falls back to `console.log`-ing the magic-link/
+Listener-login URL whenever `BREVO_API_KEY`/`BREVO_SENDER_EMAIL` are unset
+(the same fallback local dev and CI both use), so tests scrape that instead.
+
 - Unit tests around the urgency-classification redaction logic specifically
-  (this is the part most worth proving works, not just believing it does).
-- One end-to-end test covering the full MVP slice (start chat → sign in →
-  Listener claims → message round-trip) using Playwright.
-- No requirement for exhaustive coverage elsewhere — this is a demo, not
-  production software; spend testing effort where the PRD says the risk is.
+  (this is the part most worth proving works, not just believing it does) —
+  Milestone 6.
+- Unit test for `lib/rate-limit.ts` (the fixed-window limiter protecting the
+  OTP/magic-link request endpoints, called out under Security below).
+- **Milestone 9.6 (superseding the "no exhaustive coverage" line this
+  section originally had)**: revisited once the interview-prep value of a
+  thorough suite outweighed the demo-scope default. Every API route gets an
+  integration test (happy path + auth-rejection); every `lib/` function
+  that's testable without mocking Prisma or a browser API jsdom lacks
+  (Canvas, Web Audio) gets a unit test; components are scoped to the ~12
+  with real logic (forms, `AdminDashboard`, `ListenerChat`, toggles) —
+  pure-markup marketing sections (`Hero`, `PainPoints`, `FAQSection`, etc.)
+  are still deliberately skipped, not an oversight. E2E stays at the one MVP
+  flow below — broad unit/integration coverage underneath it, not a wide
+  top of the pyramid.
+- Component tests (React Testing Library): `ChatWidget` (core visitor flow),
+  `ApplyForm` (the one form that collects real applicant data — see the
+  carve-out above), plus the rest of the logic-bearing components per
+  Milestone 9.6.
+- Integration tests against a real test Postgres DB, no mocks, covering
+  every route under `app/api/` — e.g. queue claim
+  (`POST /api/queue/:id/claim`, atomic/409-on-race), message send
+  (`POST /api/chat/:id/messages`, correct sequence ordering), and outward
+  from there per Milestone 9.6's breakdown. Two honesty notes that still
+  apply even at "thorough": the passkey `register-verify` route's tests
+  cover rejection paths only (malformed response, expired/wrong challenge)
+  — a real WebAuthn ceremony needs a real authenticator, same limitation
+  Milestone 2's T2.7 already documented live, not newly faked here; and the
+  `applications` route's tests use the same synthetic
+  `test-applicant@example.com`-style fixture Milestone 3.5's manual
+  verification already established, cleaned up after — never real applicant
+  data, per this file's carve-out conditions above.
+- One end-to-end test covering the full MVP slice (start chat → Listener
+  signs in and claims → message round-trip both ways) using Playwright. The
+  visitor stays anonymous throughout: `BindIdentity` (the visitor's own
+  magic-link sign-in block) has been unmounted from `ChatWidget` since
+  Milestone 4.98, so there's no visitor-facing sign-in step actually
+  reachable in the current UI — only the Listener's. Deliberately staying
+  at one flow — E2E is the expensive layer, and the integration tests above
+  cover the other user journeys (applications, moderation) faster and just
+  as meaningfully at the API level.

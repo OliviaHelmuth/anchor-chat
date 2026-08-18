@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      # Page-data collection touches every route module at build time,
+      # including app/api/ably/token — an empty ABLY_API_KEY throws there
+      # (see lib/ably-server.ts), so this needs a real key, not a placeholder.
+      - run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          ABLY_API_KEY: ${{ secrets.ABLY_API_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+
+  test:
+    name: Unit, component, integration, E2E
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: overshare_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # docs/technical-requirements.md's Testing expectations: real Postgres
+      # (the service container above), real Ably, BREVO_API_KEY left unset
+      # so lib/email.ts logs magic-link/listener-login URLs instead of
+      # sending real email — see integration/env.ts and e2e/global-setup.ts
+      # for how the Vitest/Playwright harnesses consume this file.
+      - name: Write .env.test from repo secrets
+        run: |
+          cat > .env.test <<EOF
+          DATABASE_URL="postgresql://postgres:postgres@localhost:5432/overshare_test"
+          AUTH_SECRET="${{ secrets.AUTH_SECRET }}"
+          AUTH_TRUST_HOST="true"
+          BREVO_API_KEY=""
+          BREVO_SENDER_EMAIL=""
+          LISTENER_ADMIN_EMAIL="menty-b-test@example.com"
+          ABLY_API_KEY="${{ secrets.ABLY_API_KEY }}"
+          EOF
+
+      - run: npm test
+      - run: npm run test:integration
+      - run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

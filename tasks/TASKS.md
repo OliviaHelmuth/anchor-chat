@@ -18,6 +18,25 @@ Legend: `[FR-x.x]` = requirement it satisfies (`docs/product-requirements.md`).
 - [x] T0.6 — Wire up Sentry free tier for both client and server errors [FR-7.2] — `@sentry/nextjs`, `instrumentation.ts` (server/edge) + `instrumentation-client.ts` (client) + `app/global-error.tsx`, DSN in `.env` and Vercel Production/Preview. Source-map upload not configured (needs a Sentry auth token, not just the DSN) — fine for now, revisit if stack traces in the dashboard turn out unreadably minified
 - [x] T0.7 — Push local repo to GitHub — https://github.com/OliviaHelmuth/anchor-chat (public)
 - [ ] T0.8 — Connect the GitHub repo to the Vercel project for auto-deploy-on-push — currently failing ("Failed to connect ... Make sure you have access"), likely fallout from the ongoing GitHub outage or Vercel's GitHub App not yet authorized since we signed into Vercel via email; retry once GitHub's incident clears
+- [x] T0.9 — Local Postgres as a documented, working alternative to Neon for
+  day-to-day dev — `docs/technical-requirements.md`'s new "Local development
+  setup" section (placed just before Testing expectations, same house rule
+  of doc-before-task). `overshare_dev` provisioned on the same local
+  Homebrew `postgresql@14` cluster the test suite (Milestone 9.5) already
+  uses for `overshare_test` — separate database, same cluster, never shared
+  with each other or with the real Neon deployment. All 8 migrations
+  applied, seeded with the real admin Listener identity (same
+  `LISTENER_ADMIN_EMAIL` as the Neon DB, per the carve-out in this file's
+  own Privacy & data handling section). Verified live: started a throwaway
+  `next start` instance on a scratch port against `overshare_dev` (reusing
+  the existing `.next` production build — read-only, doesn't touch or
+  rebuild it, so the live `next dev` session on port 3000 was undisturbed
+  throughout), confirmed the homepage loads and `POST /api/chat/start`
+  actually writes a row into `overshare_dev` specifically (not Neon or the
+  separate test DB), then cleaned up that throwaway session row, leaving
+  just the seeded admin Listener. The real `.env` (still pointed at Neon)
+  was never touched — this is an additional, opt-in local option, not a
+  switch-over.
 
 ## Milestone 1 — Anonymous entry & queue [FR-1, FR-3]
 
@@ -317,6 +336,165 @@ and no way to filter or get old chats out of the way. See FR-11 in
 
 - [ ] T9.1 — Pick one finished milestone's code, write a self-review as if reviewing a teammate's PR — what you'd flag, in `docs/challenges/code-review-practice.md`
 - [ ] T9.2 — *(optional)* trade a real review with someone else on a snippet from this repo
+
+## Milestone 9.5 — Automated test suite [technical-requirements.md testing]
+
+Zero automated-test infrastructure existed before this milestone — no
+runner, no test files, no CI. `docs/technical-requirements.md`'s Testing
+expectations section (updated first, per house rule) now names Vitest
+(unit/component/integration) + Playwright (E2E) and describes the fuller
+scope actually built here, beyond the doc's original bare minimum (redaction
+unit tests + one E2E) — this is interview prep, so a couple of component and
+integration tests are worth having to talk about even where the doc's own
+"no exhaustive coverage" line doesn't require them.
+
+- [x] T9.5.1 — Vitest + React Testing Library + jsdom installed and
+  configured (`vitest.config.ts`, `vitest.setup.ts`); `npm test`/
+  `npm run test:watch` scripts added
+- [x] T9.5.2 — Unit test for `lib/rate-limit.ts` (`lib/rate-limit.test.ts`) —
+  the fixed-window limiter the Security NFR section calls out for the
+  OTP/magic-link request endpoints
+- [x] T9.5.3 — Component tests (React Testing Library):
+  `app/_components/ChatWidget.test.tsx` (welcome step → composer enabled,
+  Ably mocked out — no real socket needed for this assertion) and
+  `app/_components/ApplyForm.test.tsx` (required fields, success/error
+  submit states)
+- [x] T9.5.4 — Integration tests against a real local Postgres test database
+  (`overshare_test`, never the real dev/prod DB — guarded in
+  `integration/env.ts`), no mocks: `app/api/queue/[id]/claim/route.integration.test.ts`
+  (atomic claim, 409 on a second claim of the same entry, 403 unauthenticated)
+  and `app/api/chat/[id]/messages/route.integration.test.ts` (sequence is a
+  table-wide autoincrement, not per-chat — assert ordering, not an absolute
+  value; 400 on an empty body; 403 for a caller who isn't that chat's
+  visitor). `npm run test:integration` builds and runs a second,
+  production-mode server (`next start`, distinct `.next-test` build output —
+  see `next.config.ts`'s `NEXT_TEST_BUILD` — so it doesn't collide with a
+  live `next dev` session's `.next`) and drives it over real HTTP with a
+  hand-rolled cookie jar (`integration/auth-helpers.ts`), including a raw
+  reimplementation of Auth.js's Credentials sign-in dance (CSRF token +
+  `/api/auth/callback/:provider`) to sign in as the seeded Listener with no
+  browser involved
+- [x] T9.5.5 — Playwright installed and configured (`playwright.config.ts`,
+  Chromium only); `npm run test:e2e` script added
+- [x] T9.5.6 — `e2e/mvp-flow.spec.ts`: start chat → Listener signs in and
+  claims → message round-trip both ways, via real UI interaction in a real
+  browser against the same kind of `next start` test server T9.5.4 uses (own
+  port, own log file). The visitor stays anonymous — `BindIdentity` has been
+  unmounted from `ChatWidget` since Milestone 4.98, so there's no
+  visitor-facing sign-in step actually reachable in the current UI; the
+  Listener's sign-in is the one this test exercises. No real inbox for
+  either magic-link flow: `BREVO_API_KEY`/`BREVO_SENDER_EMAIL` stay unset in
+  `.env.test`, so `lib/email.ts`'s existing console-log fallback (same one
+  local dev already relies on) writes the sign-in URL to a log file the test
+  scrapes. Test-created session/queue-entry/message rows are deleted in
+  `afterEach`, and the visitor's display name is unique per run as a second
+  safety net against a prior failed run's leftovers being mistaken for the
+  current one (this actually happened once during development — a stale
+  "River" row from an earlier failure made a `getByRole` locator match two
+  elements instead of one).
+- [x] T9.5.7 — `.github/workflows/ci.yml`: lint + `tsc --noEmit` + `next
+  build` in one job; `npm test` + `npm run test:integration` + `npm run
+  test:e2e` against a `postgres:16` service container in a second job,
+  `.env.test` written from repo secrets at runtime (same file format/guard
+  rails as the local flow). **Not yet verified green** — needs
+  `DATABASE_URL`, `AUTH_SECRET`, and `ABLY_API_KEY` added as GitHub repo
+  secrets first (adding secrets to a shared repo needs your go-ahead, same
+  as this file's convention for anything touching shared/external state);
+  push and check the Actions tab once they're added.
+
+Verified live locally (real local Postgres `overshare_test`, real dev-server
+alongside a separate test-mode server on a different port so neither
+disturbs the other, real Ably): `npm test` (9 tests), `npm run
+test:integration` (5 tests, run twice back to back to confirm it's
+idempotent — the second run's `sequence` assertions had to be fixed to check
+ordering rather than an absolute starting value once this surfaced), and
+`npm run test:e2e` (1 test, also run twice back to back) all pass with no
+leftover rows in the test DB and no leftover server processes afterward.
+`npx tsc --noEmit` and `npm run lint` both clean (the latter needed
+`.next-test/**` added to `eslint.config.mjs`'s ignores — Next's own build
+output was otherwise being linted as source). `npm run build` (the real
+`.next`, not the test build) intentionally **not** re-run in this session to
+avoid disturbing the live `next dev` process already running on port 3000
+during this work — the test-mode build (`next build` into `.next-test`,
+same source tree) succeeded repeatedly, which already exercises the same
+build path.
+
+## Milestone 9.6 — Thorough test coverage [technical-requirements.md testing]
+
+Requested directly: Milestone 9.5 deliberately covered a thin slice (1 lib
+unit test, 2 components, 2 API routes, 1 E2E flow), matching
+`docs/technical-requirements.md`'s original "no exhaustive coverage" stance.
+This milestone supersedes that line — every API route gets an integration
+test, every testable `lib/` function gets a unit test, components are
+scoped to the ~12 with real logic, E2E stays at 1 flow. See
+`docs/technical-requirements.md`'s Testing expectations section for the
+full scope note, including what's intentionally *not* covered and why
+(Canvas/Web-Audio-dependent `lib/` modules, pure-markup components, the
+passkey ceremony, real-data-carve-out handling for applications).
+
+- [x] T9.6.1 — Update `docs/technical-requirements.md`'s Testing
+  expectations section to reflect this milestone's scope (done first, per
+  house rule)
+- [x] T9.6.2 — lib unit tests, batch 1: `tokens.ts`, `time-format.ts`,
+  `chat-client.ts`
+- [x] T9.6.3 — lib unit tests, batch 2: `webauthn.ts`'s pure helpers,
+  `i18n.tsx` DE/EN key-parity check
+- [x] T9.6.4 — `useUnreadTabNotifier.test.ts` (`renderHook`, jsdom timers)
+- [x] T9.6.5 — `email.test.ts` (mocked `fetch`, console-log fallback
+  behavior)
+- [x] T9.6.6 — Chat lifecycle route integration tests: `start`, `leave`,
+  `state`, `display-name`, `heartbeat`, `roster`
+- [x] T9.6.7 — Listener/queue route integration tests: `queue` (list),
+  `listener/sessions`, `listener/chat/[id]/messages` (incl. the T4.1
+  dual-role misattribution regression). Also fixed a harness-level bug this
+  task exposed: `signInAsListener` per test/file blew through
+  `request-listener-login`'s 5/min rate limit once enough files needed a
+  Listener session — `integration/global-setup.ts` now signs in once per
+  test run and persists the session (`getSharedListenerJar()` in
+  `integration/auth-helpers.ts`), which every integration test task from
+  here on uses instead of signing in itself
+- [x] T9.6.8 — `ably/token` route integration test (role-based capability
+  grants, real Ably REST call, no mock)
+- [x] T9.6.9 — Auth-request route integration tests: `request-otp`,
+  `request-magic-link`, `request-listener-login`
+- [x] T9.6.10 — Passkey route integration tests: `register-options`,
+  `auth-options`, `register-verify` (rejection paths only)
+- [x] T9.6.11 — Applications route integration tests: list/submit, approve,
+  reject (synthetic applicant fixture). The submit endpoint's rate limit is
+  3/hour/IP (a real anti-spam constraint, not a per-minute window like the
+  others) — approve/reject tests create their fixture applications directly
+  via Prisma instead of through the POST route, so they don't compete for
+  that tight, run-lifetime-shared budget
+- [x] T9.6.12 — Listener/review moderation route integration tests:
+  `listeners/me`, `listeners/[id]`, `listeners/[id]/reviews`, `reviews/[id]`.
+  `listeners/me` mutates the shared admin Listener's own profile, so its
+  test captures and restores the original displayName/bio in
+  beforeAll/afterAll rather than leaving it permanently changed for every
+  other task's `getSharedListenerJar()` calls
+- [x] T9.6.13 — Extract the Ably mock from `ChatWidget.test.tsx` into a
+  shared `app/_components/test-helpers/ably-mock.ts`
+- [x] T9.6.14 — `AdminDashboard.test.tsx`. Exposed and fixed two real jsdom
+  gaps that will affect every future chat-transcript/dashboard component
+  test: `Element.prototype.scrollTo` isn't implemented (stubbed globally in
+  `vitest.setup.ts`), and the shared Ably mock (T9.6.13) was missing
+  `auth.authorize()` and `channels.release()` (added to
+  `test-helpers/ably-mock.ts`)
+- [x] T9.6.15 — `ListenerChat.test.tsx` + `ChatTranscript.test.tsx`
+- [x] T9.6.16 — `ProfileEditForm.test.tsx` + `ReviewForm.test.tsx`
+- [x] T9.6.17 — `ApplicationsReview.test.tsx` + `AdminListenersPanel.test.tsx`
+- [x] T9.6.18 — `ThemeToggle.test.tsx` + `LanguageToggle.test.tsx`
+- [x] T9.6.19 — `BindIdentity.test.tsx` + `ArchiveList.test.tsx`. `BindIdentity`
+  is currently unmounted from the live app (Milestone 4.98) but the logic is
+  still real — tests cover the email-link flow and the passkey buttons'
+  error handling when the options request fails, not the real WebAuthn
+  ceremony (jsdom has no browser WebAuthn support; same "handed off, not
+  faked" posture as T2.7's live verification)
+- [x] T9.6.20 — Full-suite pass: `npm run test:all` green (79 unit/component
+  + 77 integration + 1 E2E = 157 tests, all passing), `npx tsc --noEmit` and
+  `npm run lint` both clean, `tsconfig.json` free of the auto-added
+  `.next-test/**` entries afterward. Live dev server on port 3000 confirmed
+  undisturbed throughout, no leftover test-server processes or DB rows
+  after the run.
 
 ## Milestone 10 — Demo readiness
 

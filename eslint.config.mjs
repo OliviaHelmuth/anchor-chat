@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Test-only build output (next.config.ts's NEXT_TEST_BUILD) — same
+    // reasoning as .next/** above, just a second distDir.
+    ".next-test/**",
   ]),
 ]);
 
