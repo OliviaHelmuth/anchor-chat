@@ -1,16 +1,15 @@
 "use client";
 
-import * as Ably from "ably";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ChatTranscript } from "./ChatTranscript";
 import { useChatWidget } from "./ChatWidgetContext";
 import type { ChatState } from "@/lib/queue";
-import { mergeMessages, type ChatMessage } from "@/lib/chat-client";
+import type { ChatMessage } from "@/lib/chat-client";
+import { useAblyChatChannel } from "@/lib/useAblyChatChannel";
 import { playSentSound, playReceivedSound } from "@/lib/chat-sounds";
 import { useUnreadTabNotifier } from "@/lib/useUnreadTabNotifier";
 
 const POLL_INTERVAL_MS = 20_000;
-const TYPING_IDLE_MS = 3_000;
 
 // Only one Listener exists right now (the seeded admin, "Menty B"), so
 // naming them directly in the confirmation copy is simpler and more honest
@@ -44,11 +43,9 @@ export function ChatWidget({
   const [introDismissed, setIntroDismissed] = useState(initial.kind !== "none");
   const [starting, setStarting] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageBody, setMessageBody] = useState("");
   const [sending, setSending] = useState(false);
   const [nameInput, setNameInput] = useState(initialDisplayName ?? "");
-  const [listenerTyping, setListenerTyping] = useState(false);
   // In-app unread indicator, requested directly: a red badge on the round
   // trigger bubble while the widget is minimized, separate from
   // useUnreadTabNotifier's tab-level title/favicon badge (T4.7) — this one
@@ -81,11 +78,6 @@ export function ChatWidget({
   }, [open]);
 
   const fetchingStateRef = useRef(false);
-  const messagesLoadedRef = useRef(false);
-  const lastSequenceRef = useRef(0);
-  const hasConnectedBeforeRef = useRef(false);
-  const chatChannelRef = useRef<Ably.RealtimeChannel | null>(null);
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   async function refreshState() {
@@ -99,31 +91,27 @@ export function ChatWidget({
     }
   }
 
-  async function fetchMessages(since?: number) {
-    if (!sessionId) return;
-    const url =
-      since !== undefined
-        ? `/api/chat/${sessionId}/messages?since=${since}`
-        : `/api/chat/${sessionId}/messages`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const data = (await res.json()) as { messages: ChatMessage[] };
-    setMessages((prev) => mergeMessages(prev, data.messages));
-    for (const m of data.messages) {
-      lastSequenceRef.current = Math.max(lastSequenceRef.current, m.sequence);
-    }
-  }
-
-  // Load the transcript once there's an actual session to load it for —
-  // covers both "returning visitor reopens the widget" and "just finished
-  // the welcome step and created one."
-  useEffect(() => {
-    if (sessionId && !messagesLoadedRef.current) {
-      messagesLoadedRef.current = true;
-      void fetchMessages();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  // Owns the chat:{sessionId} channel: connect, message subscribe/dedupe,
+  // presence typing, reconnect-resync, cleanup — same module backs
+  // ListenerChat's identical shape on the Listener side. `client` is the
+  // shared Ably connection this hook opened, exposed so the queue-channel
+  // effect below can reuse it instead of opening a second connection —
+  // Ably's free tier caps concurrent connections (docs/hosting-and-scaling.md).
+  const {
+    client: ablyClient,
+    messages,
+    otherTyping: listenerTyping,
+    addMessages,
+    notifyTyping,
+    clearTyping,
+  } = useAblyChatChannel(sessionId, "visitor", {
+    onReconnect: () => void refreshState(),
+    onOtherMessage: () => {
+      playReceivedSound();
+      notifyNewMessage();
+      if (!openRef.current) setUnreadCount((count) => count + 1);
+    },
+  });
 
   // Keep the transcript pinned to the latest message/typing indicator,
   // same as WhatsApp/Intercom-style widgets — otherwise a new bubble's
@@ -132,96 +120,35 @@ export function ChatWidget({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, listenerTyping]);
 
+  // FR-11.4 — a coarse "still here" signal for the admin dashboard's
+  // online/last-online indicator, piggybacked on the existing poll
+  // interval rather than a separate timer.
   useEffect(() => {
     if (chatState.kind === "none" || !sessionId) return;
-
-    // FR-11.4 — a coarse "still here" signal for the admin dashboard's
-    // online/last-online indicator, piggybacked on the existing poll
-    // interval rather than a separate timer.
     const poll = setInterval(() => {
       void refreshState();
       void fetch("/api/chat/heartbeat", { method: "POST" }).catch(() => {});
     }, POLL_INTERVAL_MS);
-    // authParams travels with every token request this client makes,
-    // including silent renewals — the token route re-verifies `role` against
-    // this specific chat server-side every time, not just once at connect
-    // (see app/api/ably/token/route.ts). role:"visitor" also sets this
-    // connection's clientId to "visitor", which is how the presence
-    // handler below tells "me" from "the Listener."
-    const ably = new Ably.Realtime({
-      authUrl: "/api/ably/token",
-      authParams: { chatId: sessionId, role: "visitor" },
-    });
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatState.kind !== "none", sessionId]);
 
-    const queueChannel = ably.channels.get("queue");
+  // The visitor's own chat-state can change from outside this tab (e.g. a
+  // Listener claims it) — a push on the shared "queue" channel, same
+  // connection the chat channel above already opened.
+  useEffect(() => {
+    if (!ablyClient) return;
+    const queueChannel = ablyClient.channels.get("queue");
     const handleQueueUpdate = () => void refreshState();
     // subscribe() resolves once attached — in dev, React Strict Mode mounts
     // this effect twice, closing the first connection before it attaches.
     // That's an expected rejection, not a real failure; the poll above
     // covers us either way.
     queueChannel.subscribe("update", handleQueueUpdate).catch(() => {});
-
-    const chatChannel = ably.channels.get(`chat:${sessionId}`);
-    chatChannelRef.current = chatChannel;
-    const handleChatMessage = (msg: Ably.Message) => {
-      const payload = msg.data as ChatMessage;
-      // Ably broadcasts to every subscriber including the sender, so a
-      // visitor-sent message echoes back here too — only sound for the
-      // other participant's messages, since the sender already got
-      // playSentSound() at the moment they hit Send.
-      if (payload.sender === "LISTENER") {
-        playReceivedSound();
-        notifyNewMessage();
-        if (!openRef.current) setUnreadCount((count) => count + 1);
-      }
-      setMessages((prev) => mergeMessages(prev, [payload]));
-      lastSequenceRef.current = Math.max(lastSequenceRef.current, payload.sequence);
-    };
-    chatChannel.subscribe("message", handleChatMessage).catch(() => {});
-
-    // FR-5.4 (T4.5) — Ably presence, not a plain publish on the message
-    // channel: presence is a distinct capability from publish (see the
-    // token route), so a client can update its own typing state without
-    // ever being able to inject a fake "message" event into the transcript.
-    chatChannel.presence.enter({ typing: false }).catch(() => {});
-    const refreshTypingState = async () => {
-      try {
-        const members = await chatChannel.presence.get();
-        setListenerTyping(
-          members.some((m) => m.clientId === "listener" && m.data?.typing === true),
-        );
-      } catch {
-        // Presence read failing shouldn't break messaging — same
-        // never-block-core-function posture as FR-6.3's classifier fallback.
-      }
-    };
-    chatChannel.presence.subscribe(["enter", "update", "leave"], refreshTypingState).catch(() => {});
-
-    // T4.3 — on reconnect (not the initial connect), resync anything sent
-    // while the socket was down instead of trusting the gap didn't matter.
-    const handleConnectionUpdate = (stateChange: Ably.ConnectionStateChange) => {
-      if (stateChange.current !== "connected") return;
-      if (!hasConnectedBeforeRef.current) {
-        hasConnectedBeforeRef.current = true;
-        return;
-      }
-      void refreshState();
-      if (messagesLoadedRef.current) void fetchMessages(lastSequenceRef.current);
-    };
-    ably.connection.on("connected", handleConnectionUpdate);
-
     return () => {
-      clearInterval(poll);
       queueChannel.unsubscribe("update", handleQueueUpdate);
-      chatChannel.unsubscribe("message", handleChatMessage);
-      chatChannel.presence.unsubscribe(refreshTypingState);
-      chatChannel.presence.leave().catch(() => {});
-      ably.connection.off("connected", handleConnectionUpdate);
-      ably.close();
-      chatChannelRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatState.kind !== "none", sessionId]);
+  }, [ablyClient]);
 
   // The welcome step's "Start chatting": creates the session (idempotent —
   // safe even if StartChat's Hero CTA already opened the widget and one
@@ -252,9 +179,6 @@ export function ChatWidget({
       const res = await fetch("/api/chat/leave", { method: "POST" });
       if (!res.ok) throw new Error("leave failed");
       setChatState({ kind: "none" });
-      setMessages([]);
-      messagesLoadedRef.current = false;
-      lastSequenceRef.current = 0;
       setIntroDismissed(false);
       setNameInput("");
     } finally {
@@ -267,21 +191,14 @@ export function ChatWidget({
   // chat product uses, since there's no "stopped typing" DOM event to hook.
   function handleMessageBodyChange(value: string) {
     setMessageBody(value);
-    const channel = chatChannelRef.current;
-    if (!channel) return;
-    channel.presence.update({ typing: true }).catch(() => {});
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      channel.presence.update({ typing: false }).catch(() => {});
-    }, TYPING_IDLE_MS);
+    notifyTyping();
   }
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     const body = messageBody.trim();
     if (!sessionId || !body) return;
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    chatChannelRef.current?.presence.update({ typing: false }).catch(() => {});
+    clearTyping();
     setSending(true);
     try {
       const res = await fetch(`/api/chat/${sessionId}/messages`, {
@@ -292,8 +209,7 @@ export function ChatWidget({
       if (res.ok) {
         const data = (await res.json()) as { message: ChatMessage };
         playSentSound();
-        setMessages((prev) => mergeMessages(prev, [data.message]));
-        lastSequenceRef.current = Math.max(lastSequenceRef.current, data.message.sequence);
+        addMessages([data.message]);
         setMessageBody("");
       }
     } finally {

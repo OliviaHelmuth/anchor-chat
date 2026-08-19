@@ -496,6 +496,41 @@ passkey ceremony, real-data-carve-out handling for applications).
   undisturbed throughout, no leftover test-server processes or DB rows
   after the run.
 
+## Milestone 9.7 — Architecture: deepen the Ably chat channel lifecycle
+
+- [x] T9.7.1 — Ran the `improve-codebase-architecture` skill's audit; strongest
+  finding was `ChatWidget`/`ListenerChat`/`AdminDashboard` each hand-rolling
+  a near-duplicate Ably connection lifecycle (connect, subscribe, presence,
+  reconnect-resync, cleanup), only ever exercised in tests through a full
+  no-op Ably mock — meaning none of that logic was actually verified
+- [x] T9.7.2 — New `lib/useAblyChatChannel.ts`: one deep module owning the
+  `chat:{chatId}` channel's whole lifecycle for `ChatWidget` (visitor) and
+  `ListenerChat` (listener) — connect, initial fetch + reconnect-resync
+  (`onReconnect` callback for extra per-caller resync), presence-derived
+  typing (`notifyTyping`/`clearTyping`, replacing each caller's own
+  `chatChannelRef`+debounce-timer duplication), and other-participant
+  filtering (`onOtherMessage`) — all derived from one `role` param.
+  `AdminDashboard` deliberately left out of scope: its dashboard-wide,
+  multi-channel, presence-only observer is a genuinely different shape, not
+  a third copy of the same one — folding it in would've relocated its
+  complexity rather than concentrated it. The hook exposes its underlying
+  Ably client (not just the channel) so `ChatWidget`'s separate `"queue"`
+  channel + poll/heartbeat effect can reuse the same connection instead of
+  opening a second one — Ably's free tier caps concurrent connections
+  (`docs/hosting-and-scaling.md`), so one visitor tab opening two would've
+  quietly halved effective capacity under that cap
+- [x] T9.7.3 — New `lib/useAblyChatChannel.test.ts` + `lib/test-helpers/ably-fake.ts`
+  (a controllable fake distinct from the existing no-op
+  `app/_components/test-helpers/ably-mock.ts`) — directly exercises the
+  previously-unverified behavior: reconnect-resync skips the first connect
+  and resyncs+fires `onReconnect` on a real one, dedupe by message id,
+  other-role-only filtering for `onOtherMessage`, presence-derived typing,
+  and the typing idle-timeout/`clearTyping` interaction. Existing
+  `ChatWidget.test.tsx`/`ListenerChat.test.tsx` needed no changes — same
+  behavior, still passing against the full mock
+- [x] T9.7.4 — `npx tsc --noEmit`, `npm run lint`, and `npm test` all clean
+  (86 unit/component tests, up from 79)
+
 ## Milestone 10 — Demo readiness
 
 - [ ] T10.1 — Seed script: synthetic visitor + Listener + a short fictional conversation, runnable from a clean clone [FR-7.3]
