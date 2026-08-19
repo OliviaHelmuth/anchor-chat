@@ -17,6 +17,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # tsc needs Next's generated route/layout types (e.g. LayoutProps in
+      # app/layout.tsx) to exist first — `next dev`/`next build` normally
+      # write them to the gitignored .next/types, but a fresh CI checkout
+      # has neither, so tsc fails on a clean clone without this. `next
+      # typegen` writes just those types, no full build needed.
+      - run: npx next typegen
       - run: npx tsc --noEmit
       # Page-data collection touches every route module at build time,
       # including app/api/ably/token — an empty ABLY_API_KEY throws there
